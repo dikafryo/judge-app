@@ -4,7 +4,9 @@
 // 연결이 끊겨도 목록·항목·이미 넣은 점수가 그대로 보이고, 새로 넣은 점수는 대기열에 쌓였다가
 // 연결이 돌아오면 자동으로 전송된다.
 //
-// 관리자 화면은 아직 웹(WebView)이며 다음 단계에서 네이티브로 옮긴다.
+// 관리자 화면도 네이티브다. 집계는 오프라인을 지원하지 않는다 — 오래된 순위를 최신인 줄 알고
+// 발표하는 사고가 연결 오류보다 훨씬 무섭기 때문이다.
+// 인쇄물(최종집계표·CSV·심사위원 카드)만 서버의 A4 출력을 시스템 브라우저로 넘긴다.
 
 import 'dart:async';
 import 'dart:convert';
@@ -16,7 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'admin/admin_webview.dart';
+import 'admin/admin_events_screen.dart';
 import 'core/brand.dart';
 import 'core/config.dart';
 import 'judge/candidates_screen.dart';
@@ -139,7 +141,7 @@ class _RootState extends ConsumerState<_Root> with WidgetsBindingObserver {
       SessionStatus.loading => const _Splash(),
       SessionStatus.signedOut => EntryScreen(
           onAdmin: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const AdminWebView()),
+            MaterialPageRoute(builder: (_) => const AdminEventsScreen()),
           ),
         ),
       SessionStatus.ready => const CandidatesScreen(),
