@@ -1,6 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 웹 화면을 불러오는 것이 전부라 인터넷 권한 하나면 된다.
-         평문 HTTP 는 쓰지 않으므로 usesCleartextTraffic 을 켜지 않는다. -->
+    <!-- 평문 HTTP 는 쓰지 않으므로 usesCleartextTraffic 을 켜지 않는다.
+         카메라 권한(QR 스캔)은 mobile_scanner 플러그인의 매니페스트에서 병합돼 들어온다 —
+         여기에 또 적으면 두 곳을 따로 관리하게 되므로 적지 않는다. -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
@@ -34,6 +35,11 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- 앱 설치 직후 QR 인식 모델을 미리 받아 둔다. 심사장에서 처음 스캔할 때
+             내려받기를 기다리는 일이 없도록. -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="barcode" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
