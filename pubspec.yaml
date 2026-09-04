@@ -1,0 +1,27 @@
+name: judge_app
+description: 온라인 심사 시스템(judge.sw4u.kr) 안드로이드 앱.
+publish_to: 'none'
+
+# X.Y.Z+build — build_and_publish.sh 가 이 형식을 정규식으로 파싱하므로 형식을 지킬 것.
+version: 1.0.1+2
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 버전을 고정한 이유: 이 값들이 pub 캐시에 이미 있어 네트워크 없이도 빌드된다.
+  webview_flutter: 4.9.0
+  webview_flutter_android: 3.16.9   # AndroidWebViewController 를 직접 쓰므로 명시 선언
+  package_info_plus: ^10.2.1
+  url_launcher: ^6.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
