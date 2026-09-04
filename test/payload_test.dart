@@ -4,40 +4,50 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:judge_app/models/payload.dart';
 
 Map<String, dynamic> sample({bool blind = false}) => {
-      'judge': {'id': 7, 'name': '홍길동'},
-      'event': {'name': '샘플 행사', 'is_open': true, 'is_blind': blind},
-      'groups': [
-        {
-          'id': 1,
-          'name': '기획',
-          'max_score': 60,
-          'has_children': true,
-          'items': [
-            {'id': 11, 'name': '창의성', 'max_score': 30, 'description': null},
-            {'id': 12, 'name': '완성도', 'max_score': 30, 'description': '마감 상태'},
-          ],
-        },
-        {
-          'id': 2,
-          'name': '발표',
-          'max_score': 40,
-          'has_children': false,
-          'items': [
-            {'id': 2, 'name': '발표', 'max_score': 40, 'description': null},
-          ],
-        },
+  'judge': {'id': 7, 'name': '홍길동'},
+  'event': {'name': '샘플 행사', 'is_open': true, 'is_blind': blind},
+  'groups': [
+    {
+      'id': 1,
+      'name': '기획',
+      'max_score': 60,
+      'has_children': true,
+      'items': [
+        {'id': 11, 'name': '창의성', 'max_score': 30, 'description': null},
+        {'id': 12, 'name': '완성도', 'max_score': 30, 'description': '마감 상태'},
       ],
-      'candidates': [
-        {'id': 101, 'number': '01', if (!blind) 'name': '가나다', if (!blind) 'affiliation': '가람'},
-        {'id': 102, 'number': '02', if (!blind) 'name': '라마바', if (!blind) 'affiliation': '나람'},
+    },
+    {
+      'id': 2,
+      'name': '발표',
+      'max_score': 40,
+      'has_children': false,
+      'items': [
+        {'id': 2, 'name': '발표', 'max_score': 40, 'description': null},
       ],
-      'scores': {
-        '101': {'11': 25, '12': 20, '2': 35},
-        '102': {'11': 10},
-      },
-      'hasSignature': false,
-      'totalMax': 100,
-    };
+    },
+  ],
+  'candidates': [
+    {
+      'id': 101,
+      'number': '01',
+      if (!blind) 'name': '가나다',
+      if (!blind) 'affiliation': '가람',
+    },
+    {
+      'id': 102,
+      'number': '02',
+      if (!blind) 'name': '라마바',
+      if (!blind) 'affiliation': '나람',
+    },
+  ],
+  'scores': {
+    '101': {'11': 25, '12': 20, '2': 35},
+    '102': {'11': 10},
+  },
+  'hasSignature': false,
+  'totalMax': 100,
+};
 
 void main() {
   test('말단 항목은 자식이 있는 대분류의 자식들과, 자식이 없는 대분류 자신이다', () {
@@ -73,6 +83,14 @@ void main() {
     expect(restored.leafItems.length, original.leafItems.length);
     expect(restored.scores, original.scores);
     expect(restored.isComplete(101), isTrue);
+  });
+
+  test('구버전 서버의 빈 scores 배열을 빈 점수로 읽는다', () {
+    final json = sample()..['scores'] = [];
+
+    final payload = JudgePayload.fromJson(json);
+
+    expect(payload.scores, isEmpty);
   });
 
   test('점수 표기는 정수면 소수점을 붙이지 않는다', () {

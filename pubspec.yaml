@@ -3,7 +3,7 @@ description: 온라인 심사 시스템(judge.sw4u.kr) 안드로이드 앱. 심�
 publish_to: 'none'
 
 # X.Y.Z+build — build_and_publish.sh 가 이 형식을 정규식으로 파싱하므로 형식을 지킬 것.
-version: 1.2.0+4
+version: 1.2.1+5
 
 environment:
   sdk: ^3.12.2
