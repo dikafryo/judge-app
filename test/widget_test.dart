@@ -1,19 +1,18 @@
-// 이 앱은 화면 대부분이 WebView(서버의 웹 화면)라 위젯 테스트로 덮을 표면이 거의 없다.
-// 자체 UI인 오류 화면과, 잘못 건드리면 앱이 엉뚱한 곳을 보게 되는 상수만 지킨다.
+// 자체 UI 로 만든 오류 화면과, 잘못 건드리면 앱이 엉뚱한 곳을 보게 되는 상수를 지킨다.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:judge_app/main.dart';
+import 'package:judge_app/core/brand.dart';
+import 'package:judge_app/core/config.dart';
 
 void main() {
   test('앱이 바라보는 주소가 심사 사이트로 고정되어 있다', () {
     expect(kSiteHost, 'judge.sw4u.kr');
-    expect(Uri.parse(kHomeUrl).host, kSiteHost);
-    expect(Uri.parse(kReleaseUrl).host, kSiteHost);
-    expect(Uri.parse(kDownloadUrl).host, kSiteHost);
 
-    // 앱 안에서 평문 HTTP 로 나가면 안 된다 (매니페스트에 cleartext 허용을 두지 않았다)
-    for (final url in [kHomeUrl, kReleaseUrl, kDownloadUrl]) {
+    for (final url in [kSiteUrl, kApiBase, kReleaseUrl, kDownloadUrl]) {
+      expect(Uri.parse(url).host, kSiteHost, reason: url);
+
+      // 평문 HTTP 로 나가면 안 된다 (매니페스트에 cleartext 허용을 두지 않았다)
       expect(Uri.parse(url).scheme, 'https', reason: url);
     }
   });

@@ -1,31 +1,40 @@
 // 온라인 심사 시스템 — 안드로이드 앱
 //
-// judge.sw4u.kr 을 WebView 로 감싸는 얇은 껍데기다. 심사 화면 자체는 서버의 웹 화면이며,
-// 오프라인 채점(입력 보관 + 전송 대기열)은 그 웹 화면의 서비스워커와 localStorage 가 담당한다.
-// 따라서 이 앱이 반드시 지켜야 할 것은 셋이다.
-//   1. DOM storage 를 켠다 — 끄면 오프라인 대기열이 통째로 죽는다
-//   2. User-Agent 에 JudgeApp 을 붙인다 — 서버가 앱 안에서 설치·인쇄 버튼을 감추는 신호
-//   3. 외부 링크는 앱에 가두지 않고 브라우저로 넘긴다
+// 심사위원 화면은 **네이티브**다. 입장할 때 받은 payload 를 기기에 저장해 두므로
+// 연결이 끊겨도 목록·항목·이미 넣은 점수가 그대로 보이고, 새로 넣은 점수는 대기열에 쌓였다가
+// 연결이 돌아오면 자동으로 전송된다.
+//
+// 관리자 화면은 아직 웹(WebView)이며 다음 단계에서 네이티브로 옮긴다.
 
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:webview_flutter/webview_flutter.dart';
-import 'package:webview_flutter_android/webview_flutter_android.dart';
 
-const String kSiteHost = 'judge.sw4u.kr';
-const String kHomeUrl = 'https://$kSiteHost/';
-const String kReleaseUrl = 'https://$kSiteHost/app-release.json';
-const String kDownloadUrl = 'https://$kSiteHost/app';
+import 'admin/admin_webview.dart';
+import 'core/brand.dart';
+import 'core/config.dart';
+import 'judge/candidates_screen.dart';
+import 'judge/entry_screen.dart';
+import 'store/judge_session.dart';
+import 'store/local_store.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const JudgeApp());
+
+  final store = await LocalStore.open();
+
+  runApp(
+    ProviderScope(
+      overrides: [localStoreProvider.overrideWithValue(store)],
+      child: const JudgeApp(),
+    ),
+  );
 }
 
 class JudgeApp extends StatelessWidget {
@@ -37,169 +46,114 @@ class JudgeApp extends StatelessWidget {
       title: '온라인 심사',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4F46E5)),
+        colorScheme: ColorScheme.fromSeed(seedColor: BrandMark.cellAccent),
+        scaffoldBackgroundColor: const Color(0xFFF1F5F9),
+        appBarTheme: const AppBarTheme(backgroundColor: Colors.white, surfaceTintColor: Colors.white),
         useMaterial3: true,
       ),
-      home: const JudgeWebView(),
+      home: const _Root(),
     );
   }
 }
 
-class JudgeWebView extends StatefulWidget {
-  const JudgeWebView({super.key});
+class _Root extends ConsumerStatefulWidget {
+  const _Root();
 
   @override
-  State<JudgeWebView> createState() => _JudgeWebViewState();
+  ConsumerState<_Root> createState() => _RootState();
 }
 
-class _JudgeWebViewState extends State<JudgeWebView> {
-  late final WebViewController _controller;
-  final GlobalKey<ScaffoldMessengerState> _messenger = GlobalKey<ScaffoldMessengerState>();
-
-  bool _ready = false;
-  bool _loading = true;
-  String? _error;
-
+class _RootState extends ConsumerState<_Root> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    unawaited(_setUp());
+
+    WidgetsBinding.instance.addObserver(this);
+
+    // 첫 프레임 뒤에 시작한다 — build 도중 상태를 바꾸면 안 된다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(ref.read(judgeSessionProvider.notifier).restore());
+      unawaited(_checkForUpdate());
+    });
   }
 
-  Future<void> _setUp() async {
-    final info = await PackageInfo.fromPlatform();
-    final controller = WebViewController();
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
-    await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
-    await controller.setBackgroundColor(const Color(0xFFF1F5F9));
-
-    // 서버가 앱 안임을 알아보는 표식. 웹 화면에서 "앱 설치"·인쇄 버튼을 감추는 데 쓰인다.
-    final ua = await controller.getUserAgent();
-    await controller.setUserAgent('${ua ?? ''} JudgeApp/${info.version}'.trim());
-
-    // 오프라인 대기열이 localStorage 를, 오프라인 화면이 서비스워커를 쓴다.
-    // webview_flutter_android 는 DOM storage 를 기본으로 켜지만 공개 API 로 강제할 수단이 없으므로,
-    // 실기기에서 '비행기모드 → 점수 제출 → 대기 배지' 가 실제로 되는지 반드시 확인할 것.
-    final platform = controller.platform;
-    if (platform is AndroidWebViewController) {
-      await platform.setMediaPlaybackRequiresUserGesture(false);
+  /// 앱으로 돌아올 때마다 못 보낸 것을 다시 보낸다.
+  /// 연결 복구를 감지할 별도 수단 없이도 대부분의 경우가 여기서 해결된다.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(ref.read(judgeSessionProvider.notifier).sync());
     }
-
-    await controller.setNavigationDelegate(
-      NavigationDelegate(
-        onPageStarted: (_) => setState(() {
-          _loading = true;
-          _error = null;
-        }),
-        onPageFinished: (_) => setState(() => _loading = false),
-        onWebResourceError: (error) {
-          // 하위 리소스(이미지 등) 실패까지 전체 오류 화면으로 만들지 않는다.
-          if (error.isForMainFrame == false) return;
-          setState(() {
-            _loading = false;
-            _error = '페이지를 열지 못했습니다.\n연결 상태를 확인해 주세요.';
-          });
-        },
-        onNavigationRequest: (request) {
-          final uri = Uri.tryParse(request.url);
-
-          if (uri == null) return NavigationDecision.prevent;
-          if (uri.host == kSiteHost) return NavigationDecision.navigate;
-
-          // 심사 사이트 밖(헤더의 neis.me 로고 등)은 앱에 가두지 않고 브라우저로 넘긴다.
-          unawaited(launchUrl(uri, mode: LaunchMode.externalApplication));
-
-          return NavigationDecision.prevent;
-        },
-      ),
-    );
-
-    await controller.loadRequest(Uri.parse(kHomeUrl));
-
-    if (! mounted) return;
-
-    setState(() {
-      _controller = controller;
-      _ready = true;
-    });
-
-    unawaited(_checkForUpdate(info));
   }
 
   /// 새 버전 알림. 실패는 전부 무시한다 — 업데이트 확인 때문에 앱이 멈추면 안 된다.
-  Future<void> _checkForUpdate(PackageInfo info) async {
-    try {
-      final response = await HttpJson.get(Uri.parse(kReleaseUrl), timeout: const Duration(seconds: 4));
+  Future<void> _checkForUpdate() async {
+    final info = await PackageInfo.fromPlatform();
+    final release = await HttpJson.get(Uri.parse(kReleaseUrl), timeout: const Duration(seconds: 4));
 
-      if (response == null) return;
+    if (release == null || !mounted) return;
 
-      final latest = response['build'];
-      final current = int.tryParse(info.buildNumber) ?? 0;
+    final latest = release['build'];
+    final current = int.tryParse(info.buildNumber) ?? 0;
 
-      if (latest is! int || latest <= current) return;
-      if (! mounted) return;
+    if (latest is! int || latest <= current) return;
 
-      _messenger.currentState?.showSnackBar(
-        SnackBar(
-          content: Text('새 버전 ${response['version']} 이(가) 있습니다.'),
-          duration: const Duration(seconds: 8),
-          action: SnackBarAction(
-            label: '받기',
-            onPressed: () => unawaited(
-              launchUrl(Uri.parse(kDownloadUrl), mode: LaunchMode.externalApplication),
-            ),
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('새 버전 ${release['version']} 이(가) 있습니다.'),
+        duration: const Duration(seconds: 8),
+        action: SnackBarAction(
+          label: '받기',
+          onPressed: () => unawaited(
+            launchUrl(Uri.parse(kDownloadUrl), mode: LaunchMode.externalApplication),
           ),
         ),
-      );
-    } catch (_) {
-      // 무시
-    }
-  }
-
-  Future<void> _handleBack() async {
-    if (await _controller.canGoBack()) {
-      await _controller.goBack();
-
-      return;
-    }
-
-    if (! mounted) return;
-
-    final leave = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('앱을 닫을까요?'),
-        content: const Text('저장하지 않은 점수는 기기에 보관되어 다음에 열 때 그대로 있습니다.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('계속 심사')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('닫기')),
-        ],
       ),
     );
-
-    if (leave == true) await SystemNavigator.pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ScaffoldMessenger(
-      key: _messenger,
-      child: PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (! didPop) unawaited(_handleBack());
-        },
-        child: Scaffold(
-          backgroundColor: const Color(0xFFF1F5F9),
-          body: SafeArea(child: _body()),
-        ),
-      ),
-    );
-  }
+    // 마감·코드 만료 같은 안내는 화면이 바뀌어도 한 번은 보여야 한다.
+    ref.listen(judgeSessionProvider, (previous, next) {
+      final notice = next.notice;
 
-  Widget _body() {
-    if (! _ready) {
-      return const Center(
+      if (notice == null || notice == previous?.notice) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(notice), duration: const Duration(seconds: 6)),
+      );
+
+      ref.read(judgeSessionProvider.notifier).clearNotice();
+    });
+
+    final status = ref.watch(judgeSessionProvider.select((state) => state.status));
+
+    return switch (status) {
+      SessionStatus.loading => const _Splash(),
+      SessionStatus.signedOut => EntryScreen(
+          onAdmin: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const AdminWebView()),
+          ),
+        ),
+      SessionStatus.ready => const CandidatesScreen(),
+    };
+  }
+}
+
+class _Splash extends StatelessWidget {
+  const _Splash();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -208,92 +162,13 @@ class _JudgeWebViewState extends State<JudgeWebView> {
             SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
           ],
         ),
-      );
-    }
-
-    if (_error != null) return ErrorView(message: _error!, onRetry: () => _controller.reload());
-
-    return Stack(
-      children: [
-        WebViewWidget(controller: _controller),
-        if (_loading) const LinearProgressIndicator(minHeight: 2),
-      ],
-    );
-  }
-}
-
-class ErrorView extends StatelessWidget {
-  const ErrorView({super.key, required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const BrandMark(size: 64),
-            const SizedBox(height: 20),
-            const Icon(Icons.wifi_off, size: 32, color: Color(0xFF94A3B8)),
-            const SizedBox(height: 16),
-            Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF475569))),
-            const SizedBox(height: 24),
-            FilledButton(onPressed: onRetry, child: const Text('다시 시도')),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 앱 아이콘과 같은 마크. 런처 아이콘 · 네이티브 스플래시 · 이 위젯이 모두 같은 그림이어야
-/// 앱을 켜는 동안 아이콘이 끊겨 보이지 않는다. 비율은 아이콘 생성기(make-icons.php)와 같다.
-class BrandMark extends StatelessWidget {
-  const BrandMark({super.key, required this.size});
-
-  final double size;
-
-  static const _background = Color(0xFF1F2933);
-  static const _cellLight = Color(0xFFF5F3EF);
-  static const _cellAccent = Color(0xFF4F46E5);
-
-  @override
-  Widget build(BuildContext context) {
-    final padding = size * (0.36 / 1.72);
-    final gap = size * (0.18 / 1.72);
-    final cell = (size - padding * 2 - gap) / 2;
-
-    Widget square(Color color) => Container(
-          width: cell,
-          height: cell,
-          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(cell * 0.12)),
-        );
-
-    return Container(
-      width: size,
-      height: size,
-      padding: EdgeInsets.all(padding),
-      decoration: BoxDecoration(
-        color: _background,
-        borderRadius: BorderRadius.circular(size * (0.18 / 1.72)),
-      ),
-      child: Column(
-        children: [
-          Row(children: [square(_cellLight), SizedBox(width: gap), square(_cellLight)]),
-          SizedBox(height: gap),
-          Row(children: [square(_cellLight), SizedBox(width: gap), square(_cellAccent)]),
-        ],
       ),
     );
   }
 }
 
 /// 업데이트 확인 한 곳에서만 쓰는 최소 JSON GET.
-/// 이것 하나 때문에 http 패키지를 더 얹지 않는다.
+/// API 클라이언트(core/api.dart)는 토큰 인증 전용이라 여기 쓰지 않는다.
 class HttpJson {
   static Future<Map<String, dynamic>?> get(Uri uri, {required Duration timeout}) async {
     final client = HttpClient()..connectionTimeout = timeout;
