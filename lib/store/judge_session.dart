@@ -4,55 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api.dart';
 import '../models/payload.dart';
+import 'judge_state.dart';
 import 'local_store.dart';
 import 'queued_op.dart';
 
-enum SessionStatus { loading, signedOut, ready }
-
-class JudgeState {
-  const JudgeState({
-    this.status = SessionStatus.loading,
-    this.payload,
-    this.queue = const [],
-    this.syncing = false,
-    this.offline = false,
-    this.notice,
-  });
-
-  final SessionStatus status;
-  final JudgePayload? payload;
-  final List<QueuedOp> queue;
-  final bool syncing;
-
-  /// 마지막 전송이 연결 문제로 실패했다. 화면 상단 안내에만 쓴다.
-  final bool offline;
-
-  /// 한 번 보여주고 지우는 안내(스낵바).
-  final String? notice;
-
-  int get pendingCount => queue.length;
-
-  bool isPending(int candidateId) => queue.any((op) => op.candidateId == candidateId);
-
-  JudgeState copyWith({
-    SessionStatus? status,
-    JudgePayload? payload,
-    List<QueuedOp>? queue,
-    bool? syncing,
-    bool? offline,
-    String? notice,
-    bool clearNotice = false,
-    bool clearPayload = false,
-  }) =>
-      JudgeState(
-        status: status ?? this.status,
-        payload: clearPayload ? null : (payload ?? this.payload),
-        queue: queue ?? this.queue,
-        syncing: syncing ?? this.syncing,
-        offline: offline ?? this.offline,
-        notice: clearNotice ? null : (notice ?? this.notice),
-      );
-}
+export 'judge_state.dart';
 
 /// 심사위원 세션 전체 — 로그인 · 로컬 상태 · 전송 대기열을 한 곳에서 관리한다.
 ///
@@ -60,12 +16,19 @@ class JudgeState {
 /// 대기열에 넣은 뒤 전송을 시도한다. 서버가 멱등(같은 요청을 다시 보내도 결과가 같음)이라
 /// 재전송이 안전하다는 것이 이 설계의 근거다.
 class JudgeSession extends StateNotifier<JudgeState> {
-  JudgeSession(this._api, this._store) : super(const JudgeState());
+  JudgeSession(
+    this._api,
+    this._store, {
+    this.refreshInterval = const Duration(seconds: 5),
+  }) : super(const JudgeState());
 
   final Api _api;
   final LocalStore _store;
+  final Duration refreshInterval;
 
   String? _token;
+  Timer? _refreshTimer;
+  bool _refreshing = false;
 
   /// 앱을 켤 때 기기에 저장된 세션을 되살린다. 여기서 네트워크를 기다리지 않는 것이 요점 —
   /// 연결이 없어도 즉시 심사 화면이 뜬다.
@@ -85,6 +48,7 @@ class JudgeSession extends StateNotifier<JudgeState> {
       queue: _store.queue,
     );
 
+    _startPolling();
     unawaited(sync());
   }
 
@@ -93,7 +57,9 @@ class JudgeSession extends StateNotifier<JudgeState> {
     final session = await _api.post('/judge/session', {'code': code});
     final token = session['token'] as String;
 
-    final payload = JudgePayload.fromJson(await _api.get('/judge/me', token: token));
+    final payload = JudgePayload.fromJson(
+      await _api.get('/judge/me', token: token),
+    );
 
     _token = token;
     await _store.saveToken(token);
@@ -101,6 +67,11 @@ class JudgeSession extends StateNotifier<JudgeState> {
     await _store.saveQueue(const []);
 
     state = JudgeState(status: SessionStatus.ready, payload: payload);
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _refreshTimer ??= Timer.periodic(refreshInterval, (_) => unawaited(sync()));
   }
 
   /// 점수 저장. 말단 항목 전체를 보낸다 — 부분 전송을 하지 않아야 'null 은 삭제' 규칙이
@@ -121,9 +92,11 @@ class JudgeSession extends StateNotifier<JudgeState> {
 
     state = state.copyWith(payload: updated);
 
-    await _enqueue(QueuedOp.scores(candidateId, {
-      for (final entry in values.entries) entry.key.toString(): entry.value,
-    }));
+    await _enqueue(
+      QueuedOp.scores(candidateId, {
+        for (final entry in values.entries) entry.key.toString(): entry.value,
+      }),
+    );
   }
 
   Future<void> saveSignature(String dataUrl) async {
@@ -160,7 +133,11 @@ class JudgeSession extends StateNotifier<JudgeState> {
 
     while (remaining.isNotEmpty) {
       try {
-        await _api.put(remaining.first.path, remaining.first.body, token: _token);
+        await _api.put(
+          remaining.first.path,
+          remaining.first.body,
+          token: _token,
+        );
         remaining.removeAt(0);
       } on ApiException catch (e) {
         if (e.isExpired) {
@@ -197,7 +174,12 @@ class JudgeSession extends StateNotifier<JudgeState> {
 
     await _store.saveQueue(remaining);
 
-    state = state.copyWith(queue: remaining, syncing: false, offline: offline, notice: notice);
+    state = state.copyWith(
+      queue: remaining,
+      syncing: false,
+      offline: offline,
+      notice: notice,
+    );
   }
 
   /// 전송을 끝낸 뒤 서버 상태로 맞춘다.
@@ -205,23 +187,32 @@ class JudgeSession extends StateNotifier<JudgeState> {
   /// 대기열이 남아 있으면 새로 받지 않는다 — 아직 못 보낸 점수를 서버의 옛 값으로
   /// 덮어써 버리면 그 입력이 사라진다.
   Future<void> sync() async {
-    await flush();
-
-    if (state.queue.isNotEmpty || _token == null) return;
+    if (_refreshing) return;
+    _refreshing = true;
 
     try {
-      final payload = JudgePayload.fromJson(await _api.get('/judge/me', token: _token));
+      await flush();
 
-      await _store.savePayload(payload);
-      state = state.copyWith(payload: payload, offline: false);
-    } on ApiException catch (e) {
-      if (e.isExpired) {
-        await _expire();
+      if (state.queue.isNotEmpty || _token == null) return;
 
-        return;
+      try {
+        final payload = JudgePayload.fromJson(
+          await _api.get('/judge/me', token: _token),
+        );
+
+        await _store.savePayload(payload);
+        state = state.copyWith(payload: payload, offline: false);
+      } on ApiException catch (e) {
+        if (e.isExpired) {
+          await _expire();
+
+          return;
+        }
+
+        state = state.copyWith(offline: e.isOffline);
       }
-
-      state = state.copyWith(offline: e.isOffline);
+    } finally {
+      _refreshing = false;
     }
   }
 
@@ -232,7 +223,11 @@ class JudgeSession extends StateNotifier<JudgeState> {
 
     state = state.copyWith(
       payload: payload.copyWith(
-        event: EventInfo(name: payload.event.name, isOpen: false, isBlind: payload.event.isBlind),
+        event: EventInfo(
+          name: payload.event.name,
+          isOpen: false,
+          isBlind: payload.event.isBlind,
+        ),
       ),
     );
   }
@@ -240,6 +235,8 @@ class JudgeSession extends StateNotifier<JudgeState> {
   /// 토큰이 죽었다. 행사를 마감하면 서버가 코드와 토큰을 함께 회수하므로,
   /// 사용자에게는 "없는 주소"가 아니라 **코드 만료**로 설명해야 원인을 안다.
   Future<void> _expire() async {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
     await _store.clear();
     _token = null;
 
@@ -252,6 +249,8 @@ class JudgeSession extends StateNotifier<JudgeState> {
   Future<void> signOut() async {
     final token = _token;
 
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
     _token = null;
     await _store.clear();
     state = const JudgeState(status: SessionStatus.signedOut);
@@ -266,12 +265,20 @@ class JudgeSession extends StateNotifier<JudgeState> {
   }
 
   void clearNotice() => state = state.copyWith(clearNotice: true);
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
 }
 
 final apiProvider = Provider<Api>((ref) => Api());
 
 /// main() 에서 실제 LocalStore 로 덮어쓴다.
-final localStoreProvider = Provider<LocalStore>((ref) => throw UnimplementedError());
+final localStoreProvider = Provider<LocalStore>(
+  (ref) => throw UnimplementedError(),
+);
 
 final judgeSessionProvider = StateNotifierProvider<JudgeSession, JudgeState>(
   (ref) => JudgeSession(ref.watch(apiProvider), ref.watch(localStoreProvider)),

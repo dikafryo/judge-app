@@ -24,7 +24,8 @@ class ApiException implements Exception {
   bool get isLocked => status == 423;
 
   /// 다시 보내도 결과가 같은 거절 — 대기열에서 빼야 한다.
-  bool get isPermanent => status != null && status! >= 400 && status! < 500 && status != 429;
+  bool get isPermanent =>
+      status != null && status! >= 400 && status! < 500 && status != 429;
 
   @override
   String toString() => message;
@@ -32,21 +33,31 @@ class ApiException implements Exception {
 
 class Api {
   Api({http.Client? client, this.timeout = const Duration(seconds: 15)})
-      : _client = client ?? http.Client();
+    : _client = client ?? http.Client();
 
   final http.Client _client;
   final Duration timeout;
 
-  Future<Map<String, dynamic>> get(String path, {String? token}) => _send('GET', path, token: token);
+  Future<Map<String, dynamic>> get(String path, {String? token}) =>
+      _send('GET', path, token: token);
 
-  Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body, {String? token}) =>
-      _send('POST', path, body: body, token: token);
+  Future<Map<String, dynamic>> post(
+    String path,
+    Map<String, dynamic> body, {
+    String? token,
+  }) => _send('POST', path, body: body, token: token);
 
-  Future<Map<String, dynamic>> put(String path, Map<String, dynamic> body, {String? token}) =>
-      _send('PUT', path, body: body, token: token);
+  Future<Map<String, dynamic>> put(
+    String path,
+    Map<String, dynamic> body, {
+    String? token,
+  }) => _send('PUT', path, body: body, token: token);
 
-  Future<Map<String, dynamic>> delete(String path, {String? token}) =>
-      _send('DELETE', path, token: token);
+  Future<Map<String, dynamic>> delete(
+    String path, {
+    String? token,
+    Map<String, dynamic>? body,
+  }) => _send('DELETE', path, token: token, body: body);
 
   Future<Map<String, dynamic>> _send(
     String method,
@@ -67,7 +78,9 @@ class Api {
     http.Response response;
 
     try {
-      response = await http.Response.fromStream(await _client.send(request)).timeout(timeout);
+      response = await http.Response.fromStream(
+        await _client.send(request),
+      ).timeout(timeout);
     } on TimeoutException {
       throw ApiException('서버가 응답하지 않습니다.');
     } on SocketException {
@@ -94,10 +107,10 @@ class Api {
   }
 
   static String _defaultMessage(int status) => switch (status) {
-        401 || 403 => '접속 권한이 없습니다. 다시 입장해 주세요.',
-        404 => '대상을 찾을 수 없습니다.',
-        423 => '심사가 마감되었습니다.',
-        429 => '시도가 너무 잦습니다. 잠시 후 다시 해 주세요.',
-        _ => '서버 오류가 발생했습니다. ($status)',
-      };
+    401 || 403 => '접속 권한이 없습니다. 다시 입장해 주세요.',
+    404 => '대상을 찾을 수 없습니다.',
+    423 => '심사가 마감되었습니다.',
+    429 => '시도가 너무 잦습니다. 잠시 후 다시 해 주세요.',
+    _ => '서버 오류가 발생했습니다. ($status)',
+  };
 }

@@ -43,14 +43,17 @@ class AdminApi {
     final created = await api.post('/events', {
       'name': name,
       'admin_password': password,
-      if (description != null && description.isNotEmpty) 'description': description,
+      if (description != null && description.isNotEmpty)
+        'description': description,
     });
 
     return _withToken(api, created['token'] as String);
   }
 
   static Future<AdminApi> _withToken(Api api, String token) async {
-    final event = AdminEvent.fromJson(await api.get('/admin/event', token: token));
+    final event = AdminEvent.fromJson(
+      await api.get('/admin/event', token: token),
+    );
 
     return AdminApi(api, token, event);
   }
@@ -61,7 +64,7 @@ class AdminApi {
   Future<Dashboard> dashboard() async =>
       Dashboard.fromJson(await _api.get('/admin/dashboard', token: token));
 
-  Future<SetupData> setup() async => 
+  Future<SetupData> setup() async =>
       SetupData.fromJson(await _api.get('/admin/setup', token: token));
 
   Future<SetupData> addCriterion({
@@ -69,25 +72,31 @@ class AdminApi {
     required int maxScore,
     int? parentId,
     String? description,
-  }) async =>
-      SetupData.fromJson(await _api.post('/admin/criteria', {
-        'name': name,
-        'max_score': maxScore,
-        'parent_id': ?parentId,
-        if (description != null && description.isNotEmpty) 'description': description,
-      }, token: token));
+  }) async => SetupData.fromJson(
+    await _api.post('/admin/criteria', {
+      'name': name,
+      'max_score': maxScore,
+      'parent_id': ?parentId,
+      if (description != null && description.isNotEmpty)
+        'description': description,
+    }, token: token),
+  );
 
-  Future<SetupData> removeCriterion(int id) async =>
-      SetupData.fromJson(await _api.delete('/admin/criteria/$id', token: token));
+  Future<SetupData> removeCriterion(int id) async => SetupData.fromJson(
+    await _api.delete('/admin/criteria/$id', token: token),
+  );
 
-  Future<SetupData> addCandidates(String bulk) async =>
-      SetupData.fromJson(await _api.post('/admin/candidates', {'bulk': bulk}, token: token));
+  Future<SetupData> addCandidates(String bulk) async => SetupData.fromJson(
+    await _api.post('/admin/candidates', {'bulk': bulk}, token: token),
+  );
 
-  Future<SetupData> removeCandidate(int id) async =>
-      SetupData.fromJson(await _api.delete('/admin/candidates/$id', token: token));
+  Future<SetupData> removeCandidate(int id) async => SetupData.fromJson(
+    await _api.delete('/admin/candidates/$id', token: token),
+  );
 
-  Future<SetupData> addJudges(String bulk) async =>
-      SetupData.fromJson(await _api.post('/admin/judges', {'bulk': bulk}, token: token));
+  Future<SetupData> addJudges(String bulk) async => SetupData.fromJson(
+    await _api.post('/admin/judges', {'bulk': bulk}, token: token),
+  );
 
   Future<SetupData> removeJudge(int id) async =>
       SetupData.fromJson(await _api.delete('/admin/judges/$id', token: token));
@@ -96,16 +105,33 @@ class AdminApi {
     required String method,
     required bool isBlind,
     int? passCount,
-  }) =>
-      _api.put('/admin/scoring-method', {
-        'scoring_method': method,
-        'is_blind': isBlind,
-        'pass_count': passCount,
-      }, token: token);
+  }) => _api.put('/admin/scoring-method', {
+    'scoring_method': method,
+    'is_blind': isBlind,
+    'pass_count': passCount,
+  }, token: token);
 
   /// 심사 마감/재개. 마감하면 접속 코드와 발급된 앱 토큰이 함께 회수된다.
   Future<String> toggleOpen() async {
     final json = await _api.post('/admin/toggle-open', const {}, token: token);
+
+    return json['message'] as String;
+  }
+
+  Future<void> updateReportSigners({
+    required bool showJudgeSigns,
+    required List<ReportSigner> signers,
+  }) => _api.put('/admin/report-signers', {
+    'show_judge_signs': showJudgeSigns,
+    'signers': signers.map((signer) => signer.toJson()).toList(),
+  }, token: token);
+
+  Future<String> deleteEvent(String confirmName) async {
+    final json = await _api.delete(
+      '/admin/event',
+      token: token,
+      body: {'confirm_name': confirmName},
+    );
 
     return json['message'] as String;
   }

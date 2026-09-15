@@ -13,57 +13,109 @@ import 'package:judge_app/store/admin_api.dart';
 /// 앱이 실제로 부른 주소를 기록하는 가짜 서버.
 class FakeAdminServer {
   final List<String> calls = [];
+  final List<Map<String, dynamic>> bodies = [];
 
   http.Client get client => MockClient((request) async {
-        calls.add('${request.method} ${request.url.path}${request.url.hasQuery ? '?${request.url.query}' : ''}');
+    calls.add(
+      '${request.method} ${request.url.path}${request.url.hasQuery ? '?${request.url.query}' : ''}',
+    );
+    if (request.body.isNotEmpty) {
+      bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+    }
 
-        final path = request.url.path;
+    final path = request.url.path;
 
-        if (path.endsWith('/admin/session')) return _json({'token': 'admin-token'});
-        if (path.endsWith('/events') && request.method == 'POST') {
-          return _json({'token': 'admin-token'}, status: 201);
-        }
-        if (path.endsWith('/events')) {
-          return _json({
-            'events': [
-              {
-                'id': 3, 'name': '가을 심사', 'is_open': true, 'event_date': '2026-10-01',
-                'candidates_count': 12, 'criteria_count': 3, 'judges_count': 5,
-              },
-            ],
-          });
-        }
-        if (path.endsWith('/admin/event')) {
-          return _json({
-            'id': 3, 'name': '가을 심사', 'is_open': true, 'is_blind': true,
-            'scoring_method': 'trimmed', 'scoring_note': '최고·최저 제외', 'pass_count': 2,
-          });
-        }
-        if (path.endsWith('/admin/setup')) {
-          return _json({
-            'criteria': [
-              {'id': 1, 'name': '기획', 'max_score': 60, 'parent_id': null, 'has_scores': true},
-              {'id': 2, 'name': '창의성', 'max_score': 30, 'parent_id': 1, 'has_scores': false},
-            ],
-            'candidates': [{'id': 9, 'name': '가나다', 'affiliation': '가람'}],
-            'judges': [
-              {'id': 4, 'name': '김심사', 'code': '483920', 'entry_url': 'https://judge.sw4u.kr/judge/483920', 'signed_at': null},
-            ],
-            'total_max': 60,
-          });
-        }
-        if (path.endsWith('/admin/print-url')) {
-          return _json({'url': 'https://judge.sw4u.kr/admin/3/print?signature=abc'});
-        }
-        if (path.endsWith('/admin/toggle-open')) {
-          return _json({'message': '심사가 마감되었습니다.', 'is_open': false});
-        }
-
-        return _json({'message': '알 수 없는 요청: $path'}, status: 404);
+    if (path.endsWith('/admin/session')) return _json({'token': 'admin-token'});
+    if (path.endsWith('/events') && request.method == 'POST') {
+      return _json({'token': 'admin-token'}, status: 201);
+    }
+    if (path.endsWith('/events')) {
+      return _json({
+        'events': [
+          {
+            'id': 3,
+            'name': '가을 심사',
+            'is_open': true,
+            'event_date': '2026-10-01',
+            'candidates_count': 12,
+            'criteria_count': 3,
+            'judges_count': 5,
+          },
+        ],
       });
+    }
+    if (path.endsWith('/admin/event') && request.method == 'DELETE') {
+      return _json({'message': "'가을 심사' 행사와 모든 심사 데이터가 삭제되었습니다."});
+    }
+    if (path.endsWith('/admin/event')) {
+      return _json({
+        'id': 3,
+        'name': '가을 심사',
+        'is_open': true,
+        'is_blind': true,
+        'scoring_method': 'trimmed',
+        'scoring_note': '최고·최저 제외',
+        'pass_count': 2,
+        'show_judge_signs': false,
+        'report_signers': [
+          {'role': '기록자', 'dept': '총무과', 'position': '주무관', 'name': '김기록'},
+        ],
+      });
+    }
+    if (path.endsWith('/admin/setup')) {
+      return _json({
+        'criteria': [
+          {
+            'id': 1,
+            'name': '기획',
+            'max_score': 60,
+            'parent_id': null,
+            'has_scores': true,
+          },
+          {
+            'id': 2,
+            'name': '창의성',
+            'max_score': 30,
+            'parent_id': 1,
+            'has_scores': false,
+          },
+        ],
+        'candidates': [
+          {'id': 9, 'name': '가나다', 'affiliation': '가람'},
+        ],
+        'judges': [
+          {
+            'id': 4,
+            'name': '김심사',
+            'code': '483920',
+            'entry_url': 'https://judge.sw4u.kr/judge/483920',
+            'signed_at': null,
+          },
+        ],
+        'total_max': 60,
+      });
+    }
+    if (path.endsWith('/admin/print-url')) {
+      return _json({
+        'url': 'https://judge.sw4u.kr/admin/3/print?signature=abc',
+      });
+    }
+    if (path.endsWith('/admin/toggle-open')) {
+      return _json({'message': '심사가 마감되었습니다.', 'is_open': false});
+    }
+    if (path.endsWith('/admin/report-signers')) {
+      return _json({'message': '최종집계표 설정이 저장되었습니다.'});
+    }
+
+    return _json({'message': '알 수 없는 요청: $path'}, status: 404);
+  });
 
   static http.Response _json(Map<String, dynamic> body, {int status = 200}) =>
-      http.Response(jsonEncode(body), status, headers: {'content-type': 'application/json'});
+      http.Response(
+        jsonEncode(body),
+        status,
+        headers: {'content-type': 'application/json'},
+      );
 }
 
 Future<(AdminApi, FakeAdminServer)> signedIn() async {
@@ -81,7 +133,34 @@ void main() {
     expect(admin.token, 'admin-token');
     expect(admin.event.name, '가을 심사');
     expect(admin.event.scoringMethod, 'trimmed');
-    expect(server.calls, ['POST /api/v1/admin/session', 'GET /api/v1/admin/event']);
+    expect(admin.event.showJudgeSigns, isFalse);
+    expect(admin.event.reportSigners.single.name, '김기록');
+    expect(server.calls, [
+      'POST /api/v1/admin/session',
+      'GET /api/v1/admin/event',
+    ]);
+  });
+
+  test('최종집계표 설정과 행사 삭제를 관리자 API로 보낸다', () async {
+    final (admin, server) = await signedIn();
+    server.calls.clear();
+    server.bodies.clear();
+
+    await admin.updateReportSigners(
+      showJudgeSigns: false,
+      signers: const [
+        ReportSigner(role: '기록자', dept: '총무과', position: '주무관', name: '김기록'),
+      ],
+    );
+    await admin.deleteEvent('가을 심사');
+
+    expect(server.calls, [
+      'PUT /api/v1/admin/report-signers',
+      'DELETE /api/v1/admin/event',
+    ]);
+    expect(server.bodies.first['show_judge_signs'], isFalse);
+    expect((server.bodies.first['signers'] as List).single['role'], '기록자');
+    expect(server.bodies.last['confirm_name'], '가을 심사');
   });
 
   test('모든 관리 요청이 /api/v1/admin 아래로 간다', () async {
@@ -107,7 +186,11 @@ void main() {
 
     expect(setup.topLevel.map((c) => c.name), ['기획']);
     expect(setup.childrenOf(1).map((c) => c.name), ['창의성']);
-    expect(setup.topLevel.first.hasScores, isTrue, reason: '이미 채점된 항목은 화면에서 알려 줘야 한다');
+    expect(
+      setup.topLevel.first.hasScores,
+      isTrue,
+      reason: '이미 채점된 항목은 화면에서 알려 줘야 한다',
+    );
     expect(setup.judges.first.code, '483920');
   });
 
@@ -123,12 +206,43 @@ void main() {
   test('집계 응답을 서버 계산 그대로 읽는다', () {
     // 앱이 순위를 다시 매기면 웹 대시보드와 숫자가 어긋난다.
     final dashboard = Dashboard.fromJson({
-      'event': {'name': '가을 심사', 'is_open': true, 'total_max': 100, 'scoring_note': '전체 합계', 'pass_count': 2},
+      'event': {
+        'name': '가을 심사',
+        'is_open': true,
+        'total_max': 100,
+        'scoring_note': '전체 합계',
+        'pass_count': 2,
+      },
       'pass_tie': {'rank': 2},
-      'judges': [{'name': '김심사', 'done': 3, 'total': 5, 'signed': true, 'code': '483920'}],
+      'judges': [
+        {
+          'name': '김심사',
+          'done': 3,
+          'total': 5,
+          'signed': true,
+          'code': '483920',
+        },
+      ],
       'rows': [
-        {'candidate_id': 9, 'number': '01', 'name': '가나다', 'sum': 88.0, 'avg': 88.0, 'rank': 1, 'pass': 'pass', 'judged_count': 1},
-        {'candidate_id': 10, 'number': '02', 'name': '라마바', 'sum': null, 'avg': null, 'rank': null, 'judged_count': 0},
+        {
+          'candidate_id': 9,
+          'number': '01',
+          'name': '가나다',
+          'sum': 88.0,
+          'avg': 88.0,
+          'rank': 1,
+          'pass': 'pass',
+          'judged_count': 1,
+        },
+        {
+          'candidate_id': 10,
+          'number': '02',
+          'name': '라마바',
+          'sum': null,
+          'avg': null,
+          'rank': null,
+          'judged_count': 0,
+        },
       ],
       'generated_at': '2026-09-04 15:00:00',
     });

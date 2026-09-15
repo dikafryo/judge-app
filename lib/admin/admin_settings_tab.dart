@@ -4,11 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api.dart';
 import '../store/admin_api.dart';
+import 'admin_settings_dialogs.dart';
 
-/// 기본설정 — 집계 방식 · 블라인드 · 선정자 수 · 마감/재개.
-///
-/// 최종집계표 결재란(기록자·검토자·확인자)은 여기에 없다. 인쇄 직전에 웹에서 하는 작업이고,
-/// 앱에서 급하게 고칠 일이 아니라 일부러 뺐다.
+/// 기본설정 — 집계 방식 · 최종집계표 · 마감/재개 · 행사 삭제.
 class AdminSettingsTab extends ConsumerStatefulWidget {
   const AdminSettingsTab({super.key});
 
@@ -34,7 +32,10 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), duration: const Duration(seconds: 5)),
+          SnackBar(
+            content: Text(e.message),
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     } finally {
@@ -52,11 +53,14 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
         content: Text(
           closing
               ? '심사위원 접속 코드가 모두 회수되어 더 이상 접속할 수 없습니다.\n'
-                  '앱에 로그인해 있던 심사위원도 즉시 로그아웃됩니다.'
+                    '앱에 로그인해 있던 심사위원도 즉시 로그아웃됩니다.'
               : '접속 코드가 새로 발급됩니다. 심사위원에게 코드를 다시 전달해야 합니다.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: Text(closing ? '마감' : '재개'),
@@ -72,14 +76,19 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), duration: const Duration(seconds: 6)),
+          SnackBar(
+            content: Text(message),
+            duration: const Duration(seconds: 6),
+          ),
         );
       }
     });
   }
 
   Future<void> _askPassCount(AdminApi admin) async {
-    final controller = TextEditingController(text: admin.event.passCount?.toString() ?? '');
+    final controller = TextEditingController(
+      text: admin.event.passCount?.toString() ?? '',
+    );
 
     final value = await showDialog<String>(
       context: context,
@@ -98,7 +107,10 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
           onSubmitted: (text) => Navigator.pop(context, text),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, controller.text),
             child: const Text('저장'),
@@ -109,11 +121,52 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
 
     if (value == null) return;
 
-    await _apply((admin) => admin.updateScoringMethod(
-          method: admin.event.scoringMethod,
-          isBlind: admin.event.isBlind,
-          passCount: int.tryParse(value.trim()),
-        ));
+    await _apply(
+      (admin) => admin.updateScoringMethod(
+        method: admin.event.scoringMethod,
+        isBlind: admin.event.isBlind,
+        passCount: int.tryParse(value.trim()),
+      ),
+    );
+  }
+
+  Future<void> _editReportSettings(AdminApi admin) async {
+    final result = await showReportSettingsDialog(context, admin.event);
+    if (result == null) return;
+
+    await _apply(
+      (admin) => admin.updateReportSigners(
+        showJudgeSigns: result.$1,
+        signers: result.$2,
+      ),
+    );
+  }
+
+  Future<void> _deleteEvent(AdminApi admin) async {
+    final confirmedName = await showEventDeletionDialog(context, admin.event);
+    if (confirmedName == null) return;
+
+    setState(() => _busy = true);
+    try {
+      final message = await admin.deleteEvent(confirmedName);
+      if (!mounted) return;
+
+      final messenger = ScaffoldMessenger.of(context);
+      ref.read(adminApiProvider.notifier).state = null;
+      Navigator.of(context).pop();
+      messenger.showSnackBar(SnackBar(content: Text(message)));
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message),
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -129,7 +182,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
         ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
-            const _SectionTitle('집계 방식'),
+            const SettingsSectionTitle('집계 방식'),
             RadioGroup<String>(
               groupValue: event.scoringMethod,
               onChanged: (value) {
@@ -151,27 +204,44 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
               ),
             ),
             const Divider(height: 32),
-            const _SectionTitle('심사위원 화면'),
+            const SettingsSectionTitle('심사위원 화면'),
             SwitchListTile(
               value: event.isBlind,
               title: const Text('블라인드 심사'),
               subtitle: const Text('켜면 심사위원에게 이름·소속을 아예 보내지 않고 심사번호만 보여 줍니다.'),
               onChanged: _busy
                   ? null
-                  : (value) => _apply((admin) => admin.updateScoringMethod(
+                  : (value) => _apply(
+                      (admin) => admin.updateScoringMethod(
                         method: admin.event.scoringMethod,
                         isBlind: value,
                         passCount: admin.event.passCount,
-                      )),
+                      ),
+                    ),
             ),
             ListTile(
               title: const Text('선정자 수'),
-              subtitle: Text(event.passCount == null ? '지정하지 않음' : '상위 ${event.passCount}곳'),
+              subtitle: Text(
+                event.passCount == null ? '지정하지 않음' : '상위 ${event.passCount}곳',
+              ),
               trailing: const Icon(Icons.chevron_right),
               onTap: _busy ? null : () => _askPassCount(admin),
             ),
             const Divider(height: 32),
-            const _SectionTitle('심사 진행'),
+            const SettingsSectionTitle('최종집계표'),
+            ListTile(
+              leading: const Icon(Icons.draw_outlined),
+              title: Text(event.showJudgeSigns ? '심사위원 서명란 포함' : '심사위원 서명란 생략'),
+              subtitle: Text(
+                event.reportSigners.isEmpty
+                    ? '결재란 없음'
+                    : '결재란: ${event.reportSigners.map((signer) => '${signer.role} ${signer.name}').join(', ')}',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _busy ? null : () => _editReportSettings(admin),
+            ),
+            const Divider(height: 32),
+            const SettingsSectionTitle('심사 진행'),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: SizedBox(
@@ -191,11 +261,15 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
               ),
             ),
             const SizedBox(height: 24),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                '행사 삭제와 최종집계표 결재란 입력은 웹(judge.sw4u.kr)에서 합니다.',
-                style: TextStyle(fontSize: 12.5, color: Color(0xFF94A3B8)),
+            const Divider(height: 32),
+            const SettingsSectionTitle('위험 구역'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                onPressed: _busy ? null : () => _deleteEvent(admin),
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: const Text('행사 영구 삭제'),
               ),
             ),
           ],
@@ -205,26 +279,11 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
     );
   }
 
-  Future<void> _setMethod(String method) => _apply((admin) => admin.updateScoringMethod(
-        method: method,
-        isBlind: admin.event.isBlind,
-        passCount: admin.event.passCount,
-      ));
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
-      ),
-    );
-  }
+  Future<void> _setMethod(String method) => _apply(
+    (admin) => admin.updateScoringMethod(
+      method: method,
+      isBlind: admin.event.isBlind,
+      passCount: admin.event.passCount,
+    ),
+  );
 }

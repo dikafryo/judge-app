@@ -24,46 +24,65 @@ class FakeServer {
   final List<Map<String, dynamic>> received = [];
 
   http.Client get client => MockClient((request) async {
-        if (offline) throw const SocketException('오프라인');
+    if (offline) throw const SocketException('오프라인');
 
-        final path = request.url.path;
+    final path = request.url.path;
 
-        if (path.endsWith('/judge/session')) {
-          return _json({'token': 'test-token', 'judge': {'id': 7, 'name': '홍길동'}});
-        }
-
-        if (path.endsWith('/judge/me')) return _json(sample());
-
-        if (path.contains('/scores')) {
-          scoreCalls += 1;
-          received.add(jsonDecode(request.body) as Map<String, dynamic>);
-
-          if (failWith != null) return _json({'message': '거절'}, status: failWith!);
-
-          return _json({'message': '저장되었습니다.', 'total': 80});
-        }
-
-        if (path.endsWith('/judge/signature')) {
-          signatureCalls += 1;
-
-          if (failWith != null) return _json({'message': '거절'}, status: failWith!);
-
-          return _json({'message': '서명이 저장되었습니다.'});
-        }
-
-        return _json({'message': '알 수 없는 요청'}, status: 404);
+    if (path.endsWith('/judge/session')) {
+      return _json({
+        'token': 'test-token',
+        'judge': {'id': 7, 'name': '홍길동'},
       });
+    }
+
+    if (path.endsWith('/judge/me')) {
+      if (failWith != null) {
+        return _json({'message': '코드 만료'}, status: failWith!);
+      }
+      return _json(sample());
+    }
+
+    if (path.contains('/scores')) {
+      scoreCalls += 1;
+      received.add(jsonDecode(request.body) as Map<String, dynamic>);
+
+      if (failWith != null) return _json({'message': '거절'}, status: failWith!);
+
+      return _json({'message': '저장되었습니다.', 'total': 80});
+    }
+
+    if (path.endsWith('/judge/signature')) {
+      signatureCalls += 1;
+
+      if (failWith != null) return _json({'message': '거절'}, status: failWith!);
+
+      return _json({'message': '서명이 저장되었습니다.'});
+    }
+
+    return _json({'message': '알 수 없는 요청'}, status: 404);
+  });
 
   static http.Response _json(Map<String, dynamic> body, {int status = 200}) =>
-      http.Response(jsonEncode(body), status, headers: {'content-type': 'application/json'});
+      http.Response(
+        jsonEncode(body),
+        status,
+        headers: {'content-type': 'application/json'},
+      );
 }
 
-Future<(JudgeSession, FakeServer, LocalStore)> signedIn() async {
+Future<(JudgeSession, FakeServer, LocalStore)> signedIn({
+  Duration? refreshInterval,
+}) async {
   SharedPreferences.setMockInitialValues({});
 
   final server = FakeServer();
   final store = await LocalStore.open();
-  final session = JudgeSession(Api(client: server.client), store);
+  final session = JudgeSession(
+    Api(client: server.client),
+    store,
+    refreshInterval: refreshInterval ?? const Duration(seconds: 5),
+  );
+  addTearDown(session.dispose);
 
   await session.signIn('483920');
 
@@ -78,7 +97,11 @@ void main() {
 
     expect(session.state.status, SessionStatus.ready);
     expect(store.token, 'test-token');
-    expect(store.payload?.candidates.length, 2, reason: '연결이 끊겨도 이 캐시로 화면을 그린다');
+    expect(
+      store.payload?.candidates.length,
+      2,
+      reason: '연결이 끊겨도 이 캐시로 화면을 그린다',
+    );
   });
 
   test('연결이 없으면 점수는 로컬에 반영되고 대기열에 남는다', () async {
@@ -87,7 +110,11 @@ void main() {
     server.offline = true;
     await session.saveScores(102, {11: 20, 12: 20, 2: 40});
 
-    expect(session.state.payload!.isComplete(102), isTrue, reason: '화면에는 바로 반영돼야 한다');
+    expect(
+      session.state.payload!.isComplete(102),
+      isTrue,
+      reason: '화면에는 바로 반영돼야 한다',
+    );
     expect(session.state.pendingCount, 1);
     expect(session.state.offline, isTrue);
     expect(store.queue.length, 1, reason: '앱을 껐다 켜도 남아 있어야 한다');
@@ -121,7 +148,11 @@ void main() {
     await session.flush();
 
     expect(server.scoreCalls, 1);
-    expect(server.received.single['scores'], {'11': 30.0, '12': 30.0, '2': 30.0});
+    expect(server.received.single['scores'], {
+      '11': 30.0,
+      '12': 30.0,
+      '2': 30.0,
+    });
     expect(store.queue, isEmpty);
   });
 
@@ -156,6 +187,19 @@ void main() {
     expect(store.token, isNull);
   });
 
+  test('앱을 켜 둔 상태에서도 마감을 감지해 접속을 종료한다', () async {
+    final (session, server, store) = await signedIn(
+      refreshInterval: const Duration(milliseconds: 10),
+    );
+
+    server.failWith = 403;
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+
+    expect(session.state.status, SessionStatus.signedOut);
+    expect(session.state.notice, contains('만료'));
+    expect(store.token, isNull);
+  });
+
   test('보내지 못한 점수가 있으면 서버 상태를 새로 받지 않는다', () async {
     // 이걸 어기면 대기 중인 입력이 서버의 옛 값으로 덮여 사라진다.
     final (session, server, _) = await signedIn();
@@ -168,7 +212,11 @@ void main() {
     await session.sync();
 
     expect(session.state.pendingCount, 1, reason: '5xx 는 일시 장애라 남겨 둔다');
-    expect(session.state.payload!.isComplete(102), isTrue, reason: '로컬 입력이 살아 있어야 한다');
+    expect(
+      session.state.payload!.isComplete(102),
+      isTrue,
+      reason: '로컬 입력이 살아 있어야 한다',
+    );
   });
 
   test('서명도 같은 대기열을 탄다', () async {

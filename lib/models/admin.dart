@@ -4,6 +4,10 @@
 /// 오래된 순위를 최신인 줄 알고 발표하는 사고가 연결 오류보다 훨씬 무섭다.
 library;
 
+import 'report_signer.dart';
+
+export 'report_signer.dart';
+
 class AdminEvent {
   const AdminEvent({
     required this.id,
@@ -12,6 +16,8 @@ class AdminEvent {
     required this.isBlind,
     required this.scoringMethod,
     required this.scoringNote,
+    required this.showJudgeSigns,
+    required this.reportSigners,
     this.passCount,
   });
 
@@ -23,17 +29,23 @@ class AdminEvent {
   /// 'all' = 전체 합계·평균, 'trimmed' = 대상별 최고·최저 총점 심사위원 제외
   final String scoringMethod;
   final String scoringNote;
+  final bool showJudgeSigns;
+  final List<ReportSigner> reportSigners;
   final int? passCount;
 
   factory AdminEvent.fromJson(Map<String, dynamic> json) => AdminEvent(
-        id: json['id'] as int,
-        name: json['name'] as String? ?? '',
-        isOpen: json['is_open'] as bool? ?? true,
-        isBlind: json['is_blind'] as bool? ?? false,
-        scoringMethod: json['scoring_method'] as String? ?? 'all',
-        scoringNote: json['scoring_note'] as String? ?? '',
-        passCount: json['pass_count'] as int?,
-      );
+    id: json['id'] as int,
+    name: json['name'] as String? ?? '',
+    isOpen: json['is_open'] as bool? ?? true,
+    isBlind: json['is_blind'] as bool? ?? false,
+    scoringMethod: json['scoring_method'] as String? ?? 'all',
+    scoringNote: json['scoring_note'] as String? ?? '',
+    showJudgeSigns: json['show_judge_signs'] as bool? ?? true,
+    reportSigners: (json['report_signers'] as List? ?? [])
+        .map((e) => ReportSigner.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    passCount: json['pass_count'] as int?,
+  );
 }
 
 /// 목록 화면에서 고르는 행사 한 건.
@@ -57,14 +69,14 @@ class EventSummary {
   final String? date;
 
   factory EventSummary.fromJson(Map<String, dynamic> json) => EventSummary(
-        id: json['id'] as int,
-        name: json['name'] as String? ?? '',
-        isOpen: json['is_open'] as bool? ?? true,
-        candidates: json['candidates_count'] as int? ?? 0,
-        criteria: json['criteria_count'] as int? ?? 0,
-        judges: json['judges_count'] as int? ?? 0,
-        date: json['event_date'] as String?,
-      );
+    id: json['id'] as int,
+    name: json['name'] as String? ?? '',
+    isOpen: json['is_open'] as bool? ?? true,
+    candidates: json['candidates_count'] as int? ?? 0,
+    criteria: json['criteria_count'] as int? ?? 0,
+    judges: json['judges_count'] as int? ?? 0,
+    date: json['event_date'] as String?,
+  );
 }
 
 class SetupCriterion {
@@ -87,31 +99,41 @@ class SetupCriterion {
   final String? description;
 
   factory SetupCriterion.fromJson(Map<String, dynamic> json) => SetupCriterion(
-        id: json['id'] as int,
-        name: json['name'] as String? ?? '',
-        maxScore: (json['max_score'] as num?)?.toInt() ?? 0,
-        hasScores: json['has_scores'] as bool? ?? false,
-        parentId: json['parent_id'] as int?,
-        description: json['description'] as String?,
-      );
+    id: json['id'] as int,
+    name: json['name'] as String? ?? '',
+    maxScore: (json['max_score'] as num?)?.toInt() ?? 0,
+    hasScores: json['has_scores'] as bool? ?? false,
+    parentId: json['parent_id'] as int?,
+    description: json['description'] as String?,
+  );
 }
 
 class SetupCandidate {
-  const SetupCandidate({required this.id, required this.name, this.affiliation});
+  const SetupCandidate({
+    required this.id,
+    required this.name,
+    this.affiliation,
+  });
 
   final int id;
   final String name;
   final String? affiliation;
 
   factory SetupCandidate.fromJson(Map<String, dynamic> json) => SetupCandidate(
-        id: json['id'] as int,
-        name: json['name'] as String? ?? '',
-        affiliation: json['affiliation'] as String?,
-      );
+    id: json['id'] as int,
+    name: json['name'] as String? ?? '',
+    affiliation: json['affiliation'] as String?,
+  );
 }
 
 class SetupJudge {
-  const SetupJudge({required this.id, required this.name, this.code, this.entryUrl, this.signedAt});
+  const SetupJudge({
+    required this.id,
+    required this.name,
+    this.code,
+    this.entryUrl,
+    this.signedAt,
+  });
 
   final int id;
   final String name;
@@ -122,12 +144,12 @@ class SetupJudge {
   final String? signedAt;
 
   factory SetupJudge.fromJson(Map<String, dynamic> json) => SetupJudge(
-        id: json['id'] as int,
-        name: json['name'] as String? ?? '',
-        code: json['code'] as String?,
-        entryUrl: json['entry_url'] as String?,
-        signedAt: json['signed_at'] as String?,
-      );
+    id: json['id'] as int,
+    name: json['name'] as String? ?? '',
+    code: json['code'] as String?,
+    entryUrl: json['entry_url'] as String?,
+    signedAt: json['signed_at'] as String?,
+  );
 }
 
 class SetupData {
@@ -143,23 +165,24 @@ class SetupData {
   final List<SetupJudge> judges;
   final int totalMax;
 
-  List<SetupCriterion> get topLevel => criteria.where((c) => c.parentId == null).toList();
+  List<SetupCriterion> get topLevel =>
+      criteria.where((c) => c.parentId == null).toList();
 
   List<SetupCriterion> childrenOf(int parentId) =>
       criteria.where((c) => c.parentId == parentId).toList();
 
   factory SetupData.fromJson(Map<String, dynamic> json) => SetupData(
-        criteria: (json['criteria'] as List? ?? [])
-            .map((e) => SetupCriterion.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        candidates: (json['candidates'] as List? ?? [])
-            .map((e) => SetupCandidate.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        judges: (json['judges'] as List? ?? [])
-            .map((e) => SetupJudge.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        totalMax: (json['total_max'] as num?)?.toInt() ?? 0,
-      );
+    criteria: (json['criteria'] as List? ?? [])
+        .map((e) => SetupCriterion.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    candidates: (json['candidates'] as List? ?? [])
+        .map((e) => SetupCandidate.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    judges: (json['judges'] as List? ?? [])
+        .map((e) => SetupJudge.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    totalMax: (json['total_max'] as num?)?.toInt() ?? 0,
+  );
 }
 
 /// 집계 한 줄. 계산은 전부 서버(DashboardController::aggregate)가 한다 —
@@ -190,16 +213,16 @@ class DashboardRow {
   final String? pass;
 
   factory DashboardRow.fromJson(Map<String, dynamic> json) => DashboardRow(
-        candidateId: json['candidate_id'] as int,
-        number: json['number']?.toString() ?? '',
-        judgedCount: json['judged_count'] as int? ?? 0,
-        name: json['name'] as String?,
-        affiliation: json['affiliation'] as String?,
-        sum: (json['sum'] as num?)?.toDouble(),
-        avg: (json['avg'] as num?)?.toDouble(),
-        rank: json['rank'] as int?,
-        pass: json['pass'] as String?,
-      );
+    candidateId: json['candidate_id'] as int,
+    number: json['number']?.toString() ?? '',
+    judgedCount: json['judged_count'] as int? ?? 0,
+    name: json['name'] as String?,
+    affiliation: json['affiliation'] as String?,
+    sum: (json['sum'] as num?)?.toDouble(),
+    avg: (json['avg'] as num?)?.toDouble(),
+    rank: json['rank'] as int?,
+    pass: json['pass'] as String?,
+  );
 }
 
 class JudgeProgress {
@@ -218,12 +241,12 @@ class JudgeProgress {
   final String? code;
 
   factory JudgeProgress.fromJson(Map<String, dynamic> json) => JudgeProgress(
-        name: json['name'] as String? ?? '',
-        done: json['done'] as int? ?? 0,
-        total: json['total'] as int? ?? 0,
-        signed: json['signed'] as bool? ?? false,
-        code: json['code'] as String?,
-      );
+    name: json['name'] as String? ?? '',
+    done: json['done'] as int? ?? 0,
+    total: json['total'] as int? ?? 0,
+    signed: json['signed'] as bool? ?? false,
+    code: json['code'] as String?,
+  );
 }
 
 class Dashboard {
