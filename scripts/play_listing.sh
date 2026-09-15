@@ -23,7 +23,8 @@ STORE="$ROOT/store"
 LISTING="$STORE/LISTING.md"
 LANG_CODE="${PLAY_LANG:-ko-KR}"
 PACKAGE="${PLAY_PACKAGE:-kr.sw4u.judge_app}"
-SA="${SERVICE_ACCOUNT_JSON:-$HOME/Desktop/developer/google-service-account.json}"
+# 서명 키(key.properties)와 같은 자리에 둔다. 저장소 바깥이라 커밋될 일이 없다.
+SA="${SERVICE_ACCOUNT_JSON:-${XDG_CONFIG_HOME:-$HOME/.config}/judge-app/google-service-account.json}"
 
 API="https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE"
 UPLOAD="https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/$PACKAGE"
