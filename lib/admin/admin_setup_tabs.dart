@@ -342,9 +342,13 @@ class _Row extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: leadingWide ? 72 : 30,
+            width: leadingWide ? 92 : 30,
             child: Text(
               leading,
+              // 6자리 접속 코드가 두 줄로 접히면 읽어 주기 어렵다. 한 줄로 고정한다.
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.visible,
               style: TextStyle(
                 fontSize: leadingWide ? 15 : 13,
                 fontWeight: FontWeight.bold,
