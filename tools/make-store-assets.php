@@ -85,9 +85,15 @@ function drawMark(\GdImage $im, float $ox, float $oy, float $box, bool $roundedB
 }
 
 /** 4배로 그린 캔버스를 목표 크기로 줄여 저장한다. */
-function downsampleAndSave(\GdImage $big, int $w, int $h, string $path): void
+function downsampleAndSave(\GdImage $big, int $w, int $h, string $path, bool $withAlpha = false): void
 {
     $out = imagecreatetruecolor($w, $h);
+
+    if ($withAlpha) {
+        imagealphablending($out, false);
+        imagesavealpha($out, true);
+    }
+
     imagecopyresampled($out, $big, 0, 0, 0, 0, $w, $h, imagesx($big), imagesy($big));
     imagepng($out, $path, 9);
     imagedestroy($out);
@@ -106,12 +112,15 @@ function renderStoreIcon(string $path): void
     $s = 512 * SUPERSAMPLE;
     $im = imagecreatetruecolor($s, $s);
     imagefilledrectangle($im, 0, 0, $s, $s, allocate($im, COLOR_BG));
+    // 플레이는 아이콘을 32비트 PNG 로만 받는다. 알파를 안 쓰더라도 채널은 있어야 한다
+    // (24비트로 올리면 업로드는 성공한 것처럼 보이고 실제로는 반영되지 않는다).
+    imagesavealpha($im, true);
 
     // 런처 아이콘(inset 1.0)과 같은 비율로 그린다 — 마크 자체의 여백(21%)이
     // 이미 충분해서 플레이가 모서리를 깎아도 셀이 잘리지 않는다.
     drawMark($im, 0, 0, $s, false);
 
-    downsampleAndSave($im, 512, 512, $path);
+    downsampleAndSave($im, 512, 512, $path, withAlpha: true);
     imagedestroy($im);
 }
 
