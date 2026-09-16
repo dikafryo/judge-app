@@ -116,6 +116,12 @@ validate_edit() {
   curl -sS -X POST "$API/edits/$EDIT:validate" "${AUTH[@]}" -H 'Content-Length: 0'
 }
 
+# 커밋 시점에 구글에 검토를 자동 요청할지. 앱에 아직 사람이 채워야 할 선언(콘텐츠
+# 등급 등)이 남아 있으면 자동 요청이 거부되므로, 그때는 '보류'로 커밋하고 검토
+# 요청은 Console 에서 누른다.
+COMMIT_QUERY=""
+
+
 STATUS=completed
 echo "▸ '$TRACK' 트랙에 배정 ($STATUS)"
 RESP=$(assign_track "$STATUS")
@@ -127,7 +133,13 @@ RESP=$(validate_edit)
 if ! jq -e '.id' >/dev/null <<<"$RESP"; then
   MSG=$(jq -r '.error.message // ""' <<<"$RESP")
 
-  if [[ "$MSG" == *"status draft"* ]]; then
+  if [[ "$MSG" == *"changesNotSentForReview"* ]]; then
+    # 올리기는 하되 검토 요청은 사람이 Console 에서 누른다.
+    COMMIT_QUERY="?changesNotSentForReview=true"
+    STATUS="$STATUS (검토 요청 보류)"
+    echo "  검토 자동 요청이 거부됐습니다 — 올리기만 하고 요청은 Console 에서 누릅니다"
+    RESP='{"id":"'"$EDIT"'"}'
+  elif [[ "$MSG" == *"status draft"* ]]; then
     # 아직 게시 이력이 없는 앱 — draft 로 올리고 게시는 Console 에서 사람이 누른다.
     STATUS=draft
     echo "  초안 앱이라 draft 로 전환합니다 (게시는 Console 에서 눌러야 시작됩니다)"
@@ -140,15 +152,18 @@ if ! jq -e '.id' >/dev/null <<<"$RESP"; then
 fi
 
 echo "▸ 커밋 중 (여기서부터 되돌릴 수 없습니다)"
-RESP=$(curl -sS -X POST "$API/edits/$EDIT:commit" "${AUTH[@]}" -H 'Content-Length: 0')
+RESP=$(curl -sS -X POST "$API/edits/$EDIT:commit$COMMIT_QUERY" "${AUTH[@]}" -H 'Content-Length: 0')
 jq -e '.id' >/dev/null <<<"$RESP" || { echo "커밋 실패:" >&2; jq -r '.error.message // .' <<<"$RESP" >&2; exit 1; }
 
 EDIT=""  # 커밋됨 — cleanup 이 지우려 하지 않게
 trap - EXIT
 echo
 echo "완료: $PACKAGE · versionCode $VERSION_CODE · $TRACK 트랙 · $STATUS"
-if [[ "$STATUS" == draft ]]; then
-  echo "초안으로 올라갔습니다 — Play Console 에서 '검토 후 출시'를 눌러야 테스터에게 갑니다."
-else
-  echo "테스터 목록은 Play Console 에서 지정해야 배포가 시작됩니다."
-fi
+case "$STATUS" in
+  draft)
+    echo "초안으로 올라갔습니다 — Play Console 에서 '검토 후 출시'를 눌러야 테스터에게 갑니다." ;;
+  *"보류"*)
+    echo "버전은 올라갔지만 검토 요청은 아직입니다 — Play Console 에서 '검토를 위해 전송'을 누르세요." ;;
+  *)
+    echo "테스터 목록은 Play Console 에서 지정해야 배포가 시작됩니다." ;;
+esac
