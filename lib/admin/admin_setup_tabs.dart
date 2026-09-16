@@ -159,7 +159,7 @@ class _CriterionDialogState extends State<_CriterionDialog> {
       title: parent == null ? '1레벨 항목 추가' : '하위 항목 추가',
       subtitle: parent == null
           ? '1레벨 배점 합계는 100점을 넘을 수 없습니다.'
-          : "'${parent.name}' (${parent.maxScore}점) 안에 들어갑니다.",
+          : "'${parent.name}' ${parent.maxScore}점 안에 들어갑니다.",
       confirmLabel: '추가',
       onConfirm: _valid
           ? () => Navigator.pop(context, (_name.text.trim(), _value))

@@ -54,9 +54,8 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
         tone: closing ? DialogTone.danger : DialogTone.neutral,
         title: closing ? '심사를 마감할까요?' : '심사를 재개할까요?',
         subtitle: closing
-            ? '심사위원 접속 코드가 모두 회수되어 더 이상 접속할 수 없습니다. '
-                  '앱에 로그인해 있던 심사위원도 즉시 로그아웃됩니다.'
-            : '접속 코드가 새로 발급됩니다. 심사위원에게 코드를 다시 전달해야 합니다.',
+            ? '접속 코드가 모두 회수되고, 들어와 있던 심사위원도 즉시 로그아웃됩니다.'
+            : '접속 코드가 새로 발급됩니다. 심사위원에게 다시 전달해야 합니다.',
         confirmLabel: closing ? '마감하기' : '재개하기',
         onConfirm: () => Navigator.pop(context, true),
       ),
@@ -88,9 +87,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
       builder: (context) => AppDialog(
         icon: Icons.emoji_events_outlined,
         title: '선정자 수',
-        subtitle:
-            '집계 화면에 상위 몇 곳이 선정으로 표시됩니다. '
-            '커트라인에서 동점이 생기면 경고합니다.',
+        subtitle: '집계 화면에 상위 몇 곳이 선정으로 표시됩니다.',
         confirmLabel: '저장',
         onConfirm: () => Navigator.pop(context, controller.text),
         child: AppField(
@@ -128,9 +125,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
       builder: (context) => AppDialog(
         icon: Icons.speed_outlined,
         title: '심사 기본점수',
-        subtitle:
-            '심사위원이 화면을 열면 각 평가 항목 만점의 이 비율만큼 점수가 미리 입력되어 있고, '
-            '위아래로 조정해 심사를 보다 쉽게 할 수 있게 합니다.',
+        subtitle: '심사위원 화면에 점수를 미리 채워 두고, 위아래로 조정해 제출합니다.',
         confirmLabel: '저장',
         onConfirm: () => Navigator.pop(context, controller.text),
         child: AppField(

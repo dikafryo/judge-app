@@ -90,10 +90,10 @@ ThemeData buildAppTheme() {
 
     textTheme: const TextTheme(
       titleLarge: TextStyle(
-        fontSize: 19,
+        fontSize: 18,
         fontWeight: FontWeight.w700,
         color: AppColor.ink,
-        height: 1.35,
+        height: 1.3,
       ),
       titleMedium: TextStyle(
         fontSize: 15.5,
@@ -109,7 +109,7 @@ ThemeData buildAppTheme() {
       filled: true,
       fillColor: AppColor.field,
       isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       hintStyle: const TextStyle(color: AppColor.faint, fontSize: 14.5),
       helperStyle: const TextStyle(
         color: AppColor.muted,
@@ -127,7 +127,7 @@ ThemeData buildAppTheme() {
 
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        minimumSize: const Size(0, 50),
+        minimumSize: const Size(0, 48),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.button),
         ),
@@ -136,7 +136,7 @@ ThemeData buildAppTheme() {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(0, 50),
+        minimumSize: const Size(0, 48),
         foregroundColor: AppColor.muted,
         side: const BorderSide(color: AppColor.line),
         shape: RoundedRectangleBorder(
@@ -285,36 +285,48 @@ class AppDialog extends StatelessWidget {
             // 버튼이 스크롤에 묻히면, 정작 눌러야 할 것을 찾아 끝까지 밀어야 한다.
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(22, 24, 22, 0),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: _accentSoft,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(icon, size: 22, color: _accent),
+                    // 아이콘과 제목은 한 줄이다. 아이콘이 제 줄을 차지하면 머리에만
+                    // 두 줄이 나가는데, 폰 세로 화면에서 그만큼 입력칸이 밀려난다.
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: _accentSoft,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(icon, size: 19, color: _accent),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 14),
-                    Text(title, style: Theme.of(context).textTheme.titleLarge),
                     if (subtitle != null) ...[
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 10),
                       Text(
                         subtitle!,
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
-                    if (child != null) ...[const SizedBox(height: 20), child!],
+                    if (child != null) ...[const SizedBox(height: 16), child!],
                   ],
                 ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
               child: Row(
                 children: [
                   Expanded(

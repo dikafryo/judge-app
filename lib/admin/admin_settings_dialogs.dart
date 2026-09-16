@@ -65,7 +65,7 @@ class _ReportSettingsDialogState extends State<_ReportSettingsDialog> {
     return AppDialog(
       icon: Icons.assignment_outlined,
       title: '최종집계표 설정',
-      subtitle: '이름을 입력한 사람만 출력물 맨 아래 결재란에 표시됩니다.',
+      subtitle: '이름을 적은 사람만 결재란에 표시됩니다.',
       confirmLabel: '저장',
       onConfirm: _save,
       child: Column(
@@ -209,7 +209,7 @@ class _EventDeletionDialogState extends State<_EventDeletionDialog> {
       icon: Icons.delete_forever_outlined,
       tone: DialogTone.danger,
       title: '행사 영구 삭제',
-      subtitle: '평가 대상·항목·심사위원·모든 점수가 함께 삭제되며 되돌릴 수 없습니다.',
+      subtitle: '대상·항목·심사위원·점수가 모두 삭제되며 되돌릴 수 없습니다.',
       confirmLabel: '영구 삭제',
       onConfirm: _matches
           ? () => Navigator.pop(context, _controller.text.trim())

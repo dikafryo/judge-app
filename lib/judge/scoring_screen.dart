@@ -109,7 +109,7 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
       builder: (context) => AppDialog(
         icon: Icons.edit_outlined,
         title: item.name,
-        subtitle: '0.5점 단위로 넣을 수 있습니다. 비우면 미입력이 됩니다.',
+        subtitle: '0.5점 단위. 비우면 미입력입니다.',
         confirmLabel: '확인',
         onConfirm: () => Navigator.pop(context, controller.text),
         child: AppField(

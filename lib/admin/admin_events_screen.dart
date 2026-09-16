@@ -93,7 +93,7 @@ class _AdminEventsScreenState extends ConsumerState<AdminEventsScreen> {
       builder: (context) => AppDialog(
         icon: Icons.lock_outline,
         title: eventName,
-        subtitle: '이 행사의 관리 비밀번호를 입력하세요. 회원가입 없이 이 비밀번호만으로 들어갑니다.',
+        subtitle: '회원가입 없이 이 비밀번호만으로 들어갑니다.',
         confirmLabel: '들어가기',
         onConfirm: () => Navigator.pop(context, controller.text),
         child: AppField(
@@ -340,7 +340,7 @@ class _NewEventDialogState extends State<_NewEventDialog> {
     return AppDialog(
       icon: Icons.add_rounded,
       title: '새 행사 만들기',
-      subtitle: '행사명과 관리 비밀번호만 있으면 시작할 수 있습니다.',
+      subtitle: '행사명과 비밀번호만 있으면 시작합니다.',
       confirmLabel: '만들기',
       onConfirm: _valid
           ? () => Navigator.pop(context, (_name.text.trim(), _password.text))
