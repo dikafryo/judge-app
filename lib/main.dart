@@ -62,6 +62,9 @@ class _Root extends ConsumerStatefulWidget {
 }
 
 class _RootState extends ConsumerState<_Root> with WidgetsBindingObserver {
+  /// 받을 수 있는 새 버전. null 이면 최신이거나 아직 확인 전이다.
+  _Update? _update;
+
   @override
   void initState() {
     super.initState();
@@ -90,7 +93,10 @@ class _RootState extends ConsumerState<_Root> with WidgetsBindingObserver {
     }
   }
 
-  /// 새 버전 알림. 실패는 전부 무시한다 — 업데이트 확인 때문에 앱이 멈추면 안 된다.
+  /// 새 버전 확인. 실패는 전부 무시한다 — 업데이트 확인 때문에 앱이 멈추면 안 된다.
+  ///
+  /// 받을 곳은 **어디서 깔렸는지**에 따라 다르다. 플레이로 깔린 앱은 서명이 플레이 것이라
+  /// 우리가 직접 배포한 APK 를 덮어씌울 수 없다 — 눌러도 "설치되지 않았습니다" 로 끝난다.
   Future<void> _checkForUpdate() async {
     final info = await PackageInfo.fromPlatform();
     final release = await HttpJson.get(
@@ -105,21 +111,17 @@ class _RootState extends ConsumerState<_Root> with WidgetsBindingObserver {
 
     if (latest is! int || latest <= current) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('새 버전 ${release['version']} 이(가) 있습니다.'),
-        duration: const Duration(seconds: 8),
-        action: SnackBarAction(
-          label: '받기',
-          onPressed: () => unawaited(
-            launchUrl(
-              Uri.parse(kDownloadUrl),
-              mode: LaunchMode.externalApplication,
-            ),
-          ),
-        ),
-      ),
-    );
+    final fromPlay = info.installerStore == kPlayInstaller;
+
+    setState(() {
+      _update = _Update(
+        version: release['version'] is String
+            ? release['version'] as String
+            : '',
+        url: updateTargetUrl(info.installerStore),
+        fromPlay: fromPlay,
+      );
+    });
   }
 
   @override
@@ -141,7 +143,7 @@ class _RootState extends ConsumerState<_Root> with WidgetsBindingObserver {
       judgeSessionProvider.select((state) => state.status),
     );
 
-    return switch (status) {
+    final screen = switch (status) {
       SessionStatus.loading => const _Splash(),
       SessionStatus.signedOut => EntryScreen(
         onAdmin: () => Navigator.of(
@@ -150,6 +152,111 @@ class _RootState extends ConsumerState<_Root> with WidgetsBindingObserver {
       ),
       SessionStatus.ready => const CandidatesScreen(),
     };
+
+    final update = _update;
+
+    // 스낵바로 알리던 것을 화면 아래 띠로 바꿨다. 스낵바는 8초 뒤 사라져서,
+    // 채점 중에 뜨면 못 보고 넘기기 일쑤였다.
+    if (update == null) return screen;
+
+    return Column(
+      children: [
+        Expanded(child: screen),
+        _UpdateBanner(
+          update: update,
+          onDismiss: () => setState(() => _update = null),
+        ),
+      ],
+    );
+  }
+}
+
+/// 받을 수 있는 새 버전과, 그것을 받을 곳.
+class _Update {
+  const _Update({
+    required this.version,
+    required this.url,
+    required this.fromPlay,
+  });
+
+  final String version;
+  final String url;
+
+  /// 플레이로 깔린 앱인가. 버튼 글씨를 어디로 보내는지 밝히는 데 쓴다.
+  final bool fromPlay;
+}
+
+class _UpdateBanner extends StatelessWidget {
+  const _UpdateBanner({required this.update, required this.onDismiss});
+
+  final _Update update;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColor.ink,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.system_update_alt,
+                size: 20,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      update.version.isEmpty
+                          ? '새 버전이 있습니다'
+                          : '새 버전 v${update.version}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      update.fromPlay ? '플레이스토어에서 업데이트합니다' : '받는 곳으로 이동합니다',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppColor.faint,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 40),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  backgroundColor: AppColor.accent,
+                ),
+                onPressed: () => unawaited(
+                  launchUrl(
+                    Uri.parse(update.url),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
+                child: const Text('업데이트 설치하기'),
+              ),
+              IconButton(
+                tooltip: '나중에',
+                icon: const Icon(Icons.close, size: 18, color: AppColor.faint),
+                onPressed: onDismiss,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
