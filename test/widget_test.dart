@@ -20,9 +20,11 @@ void main() {
   testWidgets('오류 화면은 사유를 보여주고 다시 시도를 누르면 재시도한다', (tester) async {
     var retried = 0;
 
-    await tester.pumpWidget(MaterialApp(
-      home: ErrorView(message: '페이지를 열지 못했습니다.', onRetry: () => retried++),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ErrorView(message: '페이지를 열지 못했습니다.', onRetry: () => retried++),
+      ),
+    );
 
     expect(find.text('페이지를 열지 못했습니다.'), findsOneWidget);
 

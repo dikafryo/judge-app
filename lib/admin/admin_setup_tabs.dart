@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../core/design.dart';
 import '../models/admin.dart';
 import 'setup_scope.dart';
 
@@ -26,14 +27,20 @@ class AdminCriteriaTab extends StatelessWidget {
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
             children: [
-              _Summary(
+              NoticeBox(
+                tone: remaining > 0 ? NoticeTone.warn : NoticeTone.good,
                 text: '1레벨 배점 합계 ${data.totalMax} / 100점',
-                detail: remaining > 0 ? '$remaining점 더 배정할 수 있습니다.' : '배점이 모두 배정되었습니다.',
-                warn: remaining > 0,
+                detail: remaining > 0
+                    ? '$remaining점 더 배정할 수 있습니다.'
+                    : '배점이 모두 배정되었습니다.',
               ),
               const SizedBox(height: 12),
               if (top.isEmpty)
-                const _Empty(text: '평가 항목이 없습니다. 1레벨 항목부터 만들어 주세요.'),
+                const EmptyState(
+                  icon: Icons.checklist_outlined,
+                  text: '평가 항목이 없습니다.',
+                  detail: '1레벨 항목부터 만들어 주세요.',
+                ),
               for (final parent in top)
                 _CriterionCard(
                   parent: parent,
@@ -41,7 +48,9 @@ class AdminCriteriaTab extends StatelessWidget {
                   onAddChild: () => _add(context, data, mutate, parent),
                   onDelete: (criterion) async {
                     if (await confirmDelete(context, criterion.name)) {
-                      await mutate((admin) => admin.removeCriterion(criterion.id));
+                      await mutate(
+                        (admin) => admin.removeCriterion(criterion.id),
+                      );
                     }
                   },
                 ),
@@ -75,11 +84,13 @@ class AdminCriteriaTab extends StatelessWidget {
 
     if (result == null) return;
 
-    await mutate((admin) => admin.addCriterion(
-          name: result.$1,
-          maxScore: result.$2,
-          parentId: parent?.id,
-        ));
+    await mutate(
+      (admin) => admin.addCriterion(
+        name: result.$1,
+        maxScore: result.$2,
+        parentId: parent?.id,
+      ),
+    );
   }
 
   Future<(String, int)?> _askCriterion(
@@ -87,44 +98,93 @@ class AdminCriteriaTab extends StatelessWidget {
     SetupCriterion? parent,
     required int limit,
   }) {
-    final name = TextEditingController();
-    final score = TextEditingController();
-
     return showDialog<(String, int)>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(parent == null ? '1레벨 항목 추가' : "'${parent.name}' 안에 항목 추가"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: name,
-              autofocus: true,
-              decoration: const InputDecoration(labelText: '항목명'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: score,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                labelText: '배점',
-                helperText: limit > 0 ? '남은 배점 $limit점' : '남은 배점이 없습니다',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-          TextButton(
-            onPressed: () {
-              final value = int.tryParse(score.text) ?? 0;
+      builder: (context) => _CriterionDialog(parent: parent, limit: limit),
+    );
+  }
+}
 
-              if (name.text.trim().isEmpty || value < 1) return;
+/// 테스트에서 창만 따로 띄우기 위한 진입점. 화면을 통째로 세우지 않고
+/// 입력 판정만 확인할 수 있게 한다.
+@visibleForTesting
+Widget criterionDialogForTest({SetupCriterion? parent, required int limit}) =>
+    _CriterionDialog(parent: parent, limit: limit);
 
-              Navigator.pop(context, (name.text.trim(), value));
-            },
-            child: const Text('추가'),
+/// 평가 항목 추가.
+///
+/// 예전에는 이름이 비었거나 배점이 0이면 '추가' 를 눌러도 아무 일이 없었다.
+/// 남은 배점을 넘겨도 마찬가지로 조용히 실패했다 — 서버가 거절할 때까지 몰랐다.
+/// 지금은 버튼을 흐리게 두고 이유를 칸 아래에 적는다.
+class _CriterionDialog extends StatefulWidget {
+  const _CriterionDialog({required this.parent, required this.limit});
+
+  final SetupCriterion? parent;
+  final int limit;
+
+  @override
+  State<_CriterionDialog> createState() => _CriterionDialogState();
+}
+
+class _CriterionDialogState extends State<_CriterionDialog> {
+  final _name = TextEditingController();
+  final _score = TextEditingController();
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _score.dispose();
+    super.dispose();
+  }
+
+  int get _value => int.tryParse(_score.text) ?? 0;
+
+  bool get _valid =>
+      _name.text.trim().isNotEmpty && _value >= 1 && _value <= widget.limit;
+
+  String? get _scoreError {
+    if (_score.text.isEmpty) return null;
+    if (_value < 1) return '1점 이상 입력하세요.';
+    if (_value > widget.limit) return '남은 배점(${widget.limit}점)을 넘을 수 없습니다.';
+
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final parent = widget.parent;
+
+    return AppDialog(
+      icon: Icons.checklist_rounded,
+      title: parent == null ? '1레벨 항목 추가' : '하위 항목 추가',
+      subtitle: parent == null
+          ? '1레벨 배점 합계는 100점을 넘을 수 없습니다.'
+          : "'${parent.name}' (${parent.maxScore}점) 안에 들어갑니다.",
+      confirmLabel: '추가',
+      onConfirm: _valid
+          ? () => Navigator.pop(context, (_name.text.trim(), _value))
+          : null,
+      child: Column(
+        children: [
+          AppField(
+            label: '항목명',
+            controller: _name,
+            autofocus: true,
+            hint: parent == null ? '예: 기획' : '예: 창의성',
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 16),
+          AppField(
+            label: '배점',
+            controller: _score,
+            suffix: '점',
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            errorText: _scoreError,
+            helper: widget.limit > 0
+                ? '남은 배점 ${widget.limit}점'
+                : '남은 배점이 없습니다. 다른 항목의 배점을 줄이세요.',
+            onChanged: (_) => setState(() {}),
           ),
         ],
       ),
@@ -150,7 +210,11 @@ class _CriterionCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+        color: AppColor.surface,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColor.line),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -159,7 +223,10 @@ class _CriterionCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   '${parent.name}  ${parent.maxScore}점',
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               IconButton(
@@ -169,7 +236,11 @@ class _CriterionCard extends StatelessWidget {
               ),
               IconButton(
                 tooltip: '삭제',
-                icon: const Icon(Icons.delete_outline, size: 20, color: Color(0xFF94A3B8)),
+                icon: const Icon(
+                  Icons.delete_outline,
+                  size: 20,
+                  color: AppColor.faint,
+                ),
                 onPressed: () => onDelete(parent),
               ),
             ],
@@ -179,7 +250,7 @@ class _CriterionCard extends StatelessWidget {
               padding: EdgeInsets.only(right: 8, bottom: 4),
               child: Text(
                 '이미 점수가 입력된 항목입니다 — 2레벨을 추가할 수 없습니다.',
-                style: TextStyle(fontSize: 12, color: Color(0xFFB45309)),
+                style: TextStyle(fontSize: 12, color: AppColor.warn),
               ),
             ),
           for (final child in children)
@@ -187,10 +258,14 @@ class _CriterionCard extends StatelessWidget {
               padding: const EdgeInsets.only(left: 12, right: 8),
               child: Row(
                 children: [
-                  const Text('└ ', style: TextStyle(color: Color(0xFFCBD5E1))),
+                  const Text('└ ', style: TextStyle(color: AppColor.line)),
                   Expanded(child: Text('${child.name}  ${child.maxScore}점')),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFCBD5E1)),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: AppColor.line,
+                    ),
                     onPressed: () => onDelete(child),
                   ),
                 ],
@@ -224,11 +299,15 @@ class AdminCandidatesTab extends StatelessWidget {
 
             await mutate((admin) => admin.addCandidates(bulk));
           },
-          icon: const Icon(Icons.add),
+          icon: const Icon(Icons.playlist_add_rounded),
           label: const Text('일괄 등록'),
         ),
         body: data.candidates.isEmpty
-            ? const _Empty(text: '평가 대상이 없습니다.')
+            ? const EmptyState(
+                icon: Icons.groups_outlined,
+                text: '평가 대상이 없습니다.',
+                detail: "아래 '일괄 등록' 으로 한 줄에 한 명씩 넣으세요.",
+              )
             : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                 itemCount: data.candidates.length,
@@ -242,7 +321,9 @@ class AdminCandidatesTab extends StatelessWidget {
                     subtitle: candidate.affiliation,
                     onDelete: () async {
                       if (await confirmDelete(context, candidate.name)) {
-                        await mutate((admin) => admin.removeCandidate(candidate.id));
+                        await mutate(
+                          (admin) => admin.removeCandidate(candidate.id),
+                        );
                       }
                     },
                   );
@@ -275,11 +356,15 @@ class AdminJudgesTab extends StatelessWidget {
 
             await mutate((admin) => admin.addJudges(bulk));
           },
-          icon: const Icon(Icons.add),
+          icon: const Icon(Icons.playlist_add_rounded),
           label: const Text('일괄 등록'),
         ),
         body: data.judges.isEmpty
-            ? const _Empty(text: '심사위원이 없습니다.')
+            ? const EmptyState(
+                icon: Icons.badge_outlined,
+                text: '심사위원이 없습니다.',
+                detail: '등록하면 접속 코드가 자동으로 발급됩니다.',
+              )
             : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                 itemCount: data.judges.length,
@@ -294,14 +379,16 @@ class AdminJudgesTab extends StatelessWidget {
                     subtitle: judge.code == null
                         ? '마감되어 코드가 회수되었습니다'
                         : judge.signedAt != null
-                            ? '서명 완료'
-                            : null,
+                        ? '서명 완료'
+                        : null,
                     onCopy: judge.code == null
                         ? null
                         : () {
                             Clipboard.setData(ClipboardData(text: judge.code!));
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('${judge.name} 접속 코드를 복사했습니다.')),
+                              SnackBar(
+                                content: Text('${judge.name} 접속 코드를 복사했습니다.'),
+                              ),
                             );
                           },
                     onDelete: () async {
@@ -338,7 +425,11 @@ class _Row extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: AppColor.surface,
+        borderRadius: BorderRadius.circular(AppRadius.field),
+        border: Border.all(color: AppColor.line),
+      ),
       child: Row(
         children: [
           SizedBox(
@@ -353,7 +444,7 @@ class _Row extends StatelessWidget {
                 fontSize: leadingWide ? 15 : 13,
                 fontWeight: FontWeight.bold,
                 letterSpacing: leadingWide ? 1 : 0,
-                color: const Color(0xFF64748B),
+                color: AppColor.muted,
               ),
             ),
           ),
@@ -365,7 +456,7 @@ class _Row extends StatelessWidget {
                 if (subtitle != null)
                   Text(
                     subtitle!,
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                    style: const TextStyle(fontSize: 12, color: AppColor.faint),
                   ),
               ],
             ),
@@ -373,57 +464,18 @@ class _Row extends StatelessWidget {
           if (onCopy != null)
             IconButton(
               tooltip: '코드 복사',
-              icon: const Icon(Icons.copy, size: 18, color: Color(0xFF94A3B8)),
+              icon: const Icon(Icons.copy, size: 18, color: AppColor.faint),
               onPressed: onCopy,
             ),
           IconButton(
-            icon: const Icon(Icons.delete_outline, size: 20, color: Color(0xFFCBD5E1)),
+            icon: const Icon(
+              Icons.delete_outline,
+              size: 20,
+              color: AppColor.line,
+            ),
             onPressed: onDelete,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _Summary extends StatelessWidget {
-  const _Summary({required this.text, required this.detail, required this.warn});
-
-  final String text;
-  final String detail;
-  final bool warn;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: warn ? const Color(0xFFFEF3C7) : const Color(0xFFDCFCE7),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(text, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF334155))),
-          const SizedBox(height: 2),
-          Text(detail, style: const TextStyle(fontSize: 12.5, color: Color(0xFF475569))),
-        ],
-      ),
-    );
-  }
-}
-
-class _Empty extends StatelessWidget {
-  const _Empty({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(40),
-      child: Center(
-        child: Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF94A3B8))),
       ),
     );
   }

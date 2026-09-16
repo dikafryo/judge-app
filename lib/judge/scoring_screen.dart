@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/design.dart';
 import '../models/payload.dart';
 import '../store/judge_session.dart';
 
@@ -62,7 +63,8 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
     _dirty = false;
   }
 
-  double get _total => _draft.values.fold(0, (sum, value) => sum + (value ?? 0));
+  double get _total =>
+      _draft.values.fold(0, (sum, value) => sum + (value ?? 0));
 
   void _set(CriterionItem item, double? value) {
     setState(() {
@@ -85,7 +87,10 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
   void _holdStart(CriterionItem item, double delta) {
     _bump(item, delta);
     _hold?.cancel();
-    _hold = Timer.periodic(const Duration(milliseconds: 90), (_) => _bump(item, delta));
+    _hold = Timer.periodic(
+      const Duration(milliseconds: 90),
+      (_) => _bump(item, delta),
+    );
   }
 
   void _holdStop() {
@@ -95,29 +100,26 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
 
   Future<void> _promptValue(CriterionItem item) async {
     final current = _draft[item.id];
-    final controller = TextEditingController(text: current == null ? '' : formatScore(current));
+    final controller = TextEditingController(
+      text: current == null ? '' : formatScore(current),
+    );
 
     final value = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(item.name),
-        content: TextField(
+      builder: (context) => AppDialog(
+        icon: Icons.edit_outlined,
+        title: item.name,
+        subtitle: '0.5점 단위로 넣을 수 있습니다. 비우면 미입력이 됩니다.',
+        confirmLabel: '확인',
+        onConfirm: () => Navigator.pop(context, controller.text),
+        child: AppField(
+          label: '점수',
           controller: controller,
           autofocus: true,
+          suffix: '/ ${item.maxScore}점',
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(
-            labelText: '점수 (0 ~ ${item.maxScore})',
-            helperText: '0.5점 단위로 넣을 수 있습니다. 비우면 미입력이 됩니다.',
-          ),
           onSubmitted: (text) => Navigator.pop(context, text),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('확인'),
-          ),
-        ],
       ),
     );
 
@@ -125,11 +127,16 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
 
     final trimmed = value.trim();
 
-    _set(item, trimmed.isEmpty ? null : double.tryParse(trimmed) ?? _draft[item.id]);
+    _set(
+      item,
+      trimmed.isEmpty ? null : double.tryParse(trimmed) ?? _draft[item.id],
+    );
   }
 
   Future<void> _save(JudgePayload payload) async {
-    await ref.read(judgeSessionProvider.notifier).saveScores(payload.candidates[_index].id, _draft);
+    await ref
+        .read(judgeSessionProvider.notifier)
+        .saveScores(payload.candidates[_index].id, _draft);
 
     if (mounted) setState(() => _dirty = false);
   }
@@ -182,7 +189,10 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(candidate.label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            Text(
+              candidate.label,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
             Text(
               '${_index + 1} / ${payload.candidates.length}'
               '${candidate.affiliation?.isNotEmpty == true ? ' · ${candidate.affiliation}' : ''}',
@@ -196,7 +206,11 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
             child: Center(
               child: Text(
                 '${formatScore(_total)} / ${payload.totalMax}',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF4F46E5)),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF4F46E5),
+                ),
               ),
             ),
           ),
@@ -227,12 +241,19 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
                         Expanded(
                           child: Text(
                             group.name,
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF334155),
+                            ),
                           ),
                         ),
                         Text(
                           '${group.maxScore}점',
-                          style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF94A3B8),
+                          ),
                         ),
                       ],
                     ),
@@ -293,7 +314,10 @@ class _ScoreRow extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
       child: Row(
         children: [
           Expanded(
@@ -301,24 +325,41 @@ class _ScoreRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (showName)
-                  Text(item.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  Text(
+                    item.name,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 Text(
                   '배점 ${item.maxScore}점',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF94A3B8),
+                  ),
                 ),
                 if (item.description?.isNotEmpty == true)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       item.description!,
-                      style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF94A3B8),
+                      ),
                     ),
                   ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          _StepButton(icon: Icons.remove, enabled: enabled, onPress: onDecrease, onRelease: onRelease),
+          _StepButton(
+            icon: Icons.remove,
+            enabled: enabled,
+            onPress: onDecrease,
+            onRelease: onRelease,
+          ),
           GestureDetector(
             onTap: enabled ? onTapValue : null,
             child: Container(
@@ -330,12 +371,19 @@ class _ScoreRow extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: value == null ? const Color(0xFFCBD5E1) : const Color(0xFF0F172A),
+                  color: value == null
+                      ? const Color(0xFFCBD5E1)
+                      : const Color(0xFF0F172A),
                 ),
               ),
             ),
           ),
-          _StepButton(icon: Icons.add, enabled: enabled, onPress: onIncrease, onRelease: onRelease),
+          _StepButton(
+            icon: Icons.add,
+            enabled: enabled,
+            onPress: onIncrease,
+            onRelease: onRelease,
+          ),
         ],
       ),
     );
@@ -370,7 +418,10 @@ class _StepButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
         ),
-        child: Icon(icon, color: enabled ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+        child: Icon(
+          icon,
+          color: enabled ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+        ),
       ),
     );
   }
@@ -396,7 +447,12 @@ class _BottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + MediaQuery.of(context).padding.bottom),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        10,
+        16,
+        10 + MediaQuery.of(context).padding.bottom,
+      ),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
@@ -418,7 +474,10 @@ class _BottomBar extends StatelessWidget {
                 onPressed: enabled ? onNext : null,
                 child: Text(
                   dirty ? lastLabel : lastLabel.replaceFirst('저장하고 ', ''),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),

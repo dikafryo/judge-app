@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api.dart';
 import '../core/brand.dart';
+import '../core/design.dart';
 import '../models/admin.dart';
 import '../store/admin_api.dart';
 
@@ -17,7 +18,12 @@ typedef SetupMutation = Future<SetupData> Function(AdminApi admin);
 class SetupScope extends ConsumerStatefulWidget {
   const SetupScope({super.key, required this.builder});
 
-  final Widget Function(BuildContext context, SetupData data, Future<void> Function(SetupMutation) mutate) builder;
+  final Widget Function(
+    BuildContext context,
+    SetupData data,
+    Future<void> Function(SetupMutation) mutate,
+  )
+  builder;
 
   @override
   ConsumerState<SetupScope> createState() => _SetupScopeState();
@@ -69,7 +75,10 @@ class _SetupScopeState extends ConsumerState<SetupScope> {
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), duration: const Duration(seconds: 5)),
+          SnackBar(
+            content: Text(e.message),
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     } finally {
@@ -97,31 +106,42 @@ class _SetupScopeState extends ConsumerState<SetupScope> {
 }
 
 /// 웹과 같은 "한 줄에 하나" 일괄 등록 입력창.
+///
+/// 여러 줄을 받는 칸이라 [AppField] 가 아니라 직접 조립한다 — 예시를 회색으로
+/// 깔아 두어야 어떤 형식으로 적어야 하는지 설명 없이도 보인다.
 Future<String?> askBulk(
   BuildContext context, {
   required String title,
   required String hint,
   required String helper,
+  IconData icon = Icons.playlist_add_rounded,
 }) {
   final controller = TextEditingController();
 
   return showDialog<String>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(title),
-      content: TextField(
+    builder: (context) => AppDialog(
+      icon: icon,
+      title: title,
+      subtitle: helper,
+      confirmLabel: '등록',
+      onConfirm: () => Navigator.pop(context, controller.text),
+      child: TextField(
         controller: controller,
         autofocus: true,
-        maxLines: 6,
-        decoration: InputDecoration(hintText: hint, helperText: helper, helperMaxLines: 3),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('취소')),
-        TextButton(
-          onPressed: () => Navigator.pop(context, controller.text),
-          child: const Text('등록'),
+        maxLines: 7,
+        minLines: 4,
+        style: const TextStyle(fontSize: 15, height: 1.6, color: AppColor.ink),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintMaxLines: 4,
+          hintStyle: const TextStyle(
+            fontSize: 15,
+            height: 1.6,
+            color: AppColor.faint,
+          ),
         ),
-      ],
+      ),
     ),
   );
 }
@@ -130,16 +150,13 @@ Future<String?> askBulk(
 Future<bool> confirmDelete(BuildContext context, String what) async {
   final ok = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text('$what 을(를) 삭제할까요?'),
-      content: const Text('이미 입력된 점수도 함께 사라지며 되돌릴 수 없습니다.'),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('삭제', style: TextStyle(color: Colors.red)),
-        ),
-      ],
+    builder: (context) => AppDialog(
+      icon: Icons.delete_outline_rounded,
+      tone: DialogTone.danger,
+      title: '$what 을(를) 삭제할까요?',
+      subtitle: '이미 입력된 점수도 함께 사라지며 되돌릴 수 없습니다.',
+      confirmLabel: '삭제',
+      onConfirm: () => Navigator.pop(context, true),
     ),
   );
 

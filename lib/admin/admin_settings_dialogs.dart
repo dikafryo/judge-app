@@ -1,27 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/design.dart';
 import '../models/admin.dart';
-
-class SettingsSectionTitle extends StatelessWidget {
-  const SettingsSectionTitle(this.text, {super.key});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.bold,
-          color: Color(0xFF64748B),
-        ),
-      ),
-    );
-  }
-}
 
 Future<(bool, List<ReportSigner>)?> showReportSettingsDialog(
   BuildContext context,
@@ -82,43 +62,42 @@ class _ReportSettingsDialogState extends State<_ReportSettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('최종집계표 설정'),
-      content: SizedBox(
-        width: 420,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: _showJudgeSigns,
-                title: const Text('심사위원 서명란 포함'),
-                subtitle: const Text('끄면 아래 결재란의 기록자 이름이 필수입니다.'),
-                onChanged: (value) => setState(() {
-                  _showJudgeSigns = value;
-                  _error = null;
-                }),
-              ),
-              const Divider(),
-              for (final role in _controllers.keys) _signerFields(role),
-              if (_error != null)
-                Text(
-                  _error!,
-                  style: const TextStyle(color: Colors.red, fontSize: 13),
-                ),
-            ],
+    return AppDialog(
+      icon: Icons.assignment_outlined,
+      title: '최종집계표 설정',
+      subtitle: '이름을 입력한 사람만 출력물 맨 아래 결재란에 표시됩니다.',
+      confirmLabel: '저장',
+      onConfirm: _save,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Material(
+            color: AppColor.field,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.field),
+              side: const BorderSide(color: AppColor.line),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: SwitchListTile(
+              contentPadding: const EdgeInsets.fromLTRB(14, 2, 6, 2),
+              value: _showJudgeSigns,
+              title: const Text('심사위원 서명란 포함'),
+              subtitle: const Text('끄면 아래 기록자 이름이 필수입니다.'),
+              onChanged: (value) => setState(() {
+                _showJudgeSigns = value;
+                _error = null;
+              }),
+            ),
           ),
-        ),
+          const SizedBox(height: 20),
+          for (final role in _controllers.keys) _signerFields(role),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: NoticeBox(tone: NoticeTone.warn, text: _error!),
+            ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('취소'),
-        ),
-        FilledButton(onPressed: _save, child: const Text('저장')),
-      ],
     );
   }
 
@@ -126,34 +105,51 @@ class _ReportSettingsDialogState extends State<_ReportSettingsDialog> {
     final row = _controllers[role]!;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(role, style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
           Row(
             children: [
-              Expanded(
-                child: TextField(
-                  controller: row.dept,
-                  decoration: const InputDecoration(labelText: '부서'),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColor.accentSoft,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: Text(
+                  role,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: AppColor.accent,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: TextField(
-                  controller: row.position,
-                  decoration: const InputDecoration(labelText: '직급'),
+                child: Text(
+                  role == '기록자' && !_showJudgeSigns ? '필수' : '비워 두면 표시하지 않습니다',
+                  style: const TextStyle(fontSize: 11.5, color: AppColor.faint),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          TextField(
-            controller: row.name,
-            decoration: InputDecoration(labelText: '$role 이름'),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: AppField(label: '부서', controller: row.dept),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: AppField(label: '직급', controller: row.position),
+              ),
+            ],
           ),
+          const SizedBox(height: 10),
+          AppField(label: '이름', controller: row.name),
         ],
       ),
     );
@@ -209,38 +205,23 @@ class _EventDeletionDialogState extends State<_EventDeletionDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('행사 영구 삭제'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('평가 대상·항목·심사위원·모든 점수가 함께 삭제되며 되돌릴 수 없습니다.'),
-          const SizedBox(height: 16),
-          Text('확인하려면 “${widget.event.name}”을(를) 입력하세요.'),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _controller,
-            autofocus: true,
-            decoration: const InputDecoration(labelText: '행사명'),
-            onChanged: (value) =>
-                setState(() => _matches = value.trim() == widget.event.name),
-          ),
-        ],
+    return AppDialog(
+      icon: Icons.delete_forever_outlined,
+      tone: DialogTone.danger,
+      title: '행사 영구 삭제',
+      subtitle: '평가 대상·항목·심사위원·모든 점수가 함께 삭제되며 되돌릴 수 없습니다.',
+      confirmLabel: '영구 삭제',
+      onConfirm: _matches
+          ? () => Navigator.pop(context, _controller.text.trim())
+          : null,
+      child: AppField(
+        label: '확인을 위해 행사명을 그대로 입력하세요',
+        controller: _controller,
+        autofocus: true,
+        hint: widget.event.name,
+        onChanged: (value) =>
+            setState(() => _matches = value.trim() == widget.event.name),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('취소'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: Colors.red),
-          onPressed: _matches
-              ? () => Navigator.pop(context, _controller.text.trim())
-              : null,
-          child: const Text('영구 삭제'),
-        ),
-      ],
     );
   }
 }

@@ -41,7 +41,9 @@ class _CandidatesScreenState extends ConsumerState<CandidatesScreen> {
       if (!matchesFilter) return false;
       if (keyword.isEmpty) return true;
 
-      return '${c.number} ${c.name ?? ''} ${c.affiliation ?? ''}'.toLowerCase().contains(keyword);
+      return '${c.number} ${c.name ?? ''} ${c.affiliation ?? ''}'
+          .toLowerCase()
+          .contains(keyword);
     }).toList();
   }
 
@@ -58,10 +60,16 @@ class _CandidatesScreenState extends ConsumerState<CandidatesScreen> {
               : '다시 심사하려면 접속 코드를 새로 입력해야 합니다.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('계속 심사')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('계속 심사'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('나가기', style: TextStyle(color: pending > 0 ? Colors.red : null)),
+            child: Text(
+              '나가기',
+              style: TextStyle(color: pending > 0 ? Colors.red : null),
+            ),
           ),
         ],
       ),
@@ -75,7 +83,9 @@ class _CandidatesScreenState extends ConsumerState<CandidatesScreen> {
     final session = ref.watch(judgeSessionProvider);
     final payload = session.payload;
 
-    if (payload == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (payload == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     final visible = _visible(payload);
     final total = payload.candidates.length;
@@ -87,7 +97,10 @@ class _CandidatesScreenState extends ConsumerState<CandidatesScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(payload.event.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            Text(
+              payload.event.name,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
             Text(
               '${payload.judgeName} 심사위원',
               style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
@@ -99,13 +112,19 @@ class _CandidatesScreenState extends ConsumerState<CandidatesScreen> {
             tooltip: '새로고침',
             onPressed: () => ref.read(judgeSessionProvider.notifier).sync(),
             icon: session.syncing
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.refresh),
           ),
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'signature') {
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignatureScreen()));
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const SignatureScreen()),
+                );
               } else {
                 _confirmSignOut(session);
               }
@@ -172,7 +191,10 @@ class _CandidatesScreenState extends ConsumerState<CandidatesScreen> {
           Expanded(
             child: visible.isEmpty
                 ? const Center(
-                    child: Text('해당하는 평가 대상이 없습니다.', style: TextStyle(color: Color(0xFF94A3B8))),
+                    child: Text(
+                      '해당하는 평가 대상이 없습니다.',
+                      style: TextStyle(color: Color(0xFF94A3B8)),
+                    ),
                   )
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -184,7 +206,8 @@ class _CandidatesScreenState extends ConsumerState<CandidatesScreen> {
                       pending: session.isPending(visible[index].id),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => ScoringScreen(candidateId: visible[index].id),
+                          builder: (_) =>
+                              ScoringScreen(candidateId: visible[index].id),
                         ),
                       ),
                     ),
@@ -196,10 +219,10 @@ class _CandidatesScreenState extends ConsumerState<CandidatesScreen> {
   }
 
   Widget _chip(String label, int count, CandidateFilter filter) => ChoiceChip(
-        label: Text('$label $count'),
-        selected: _filter == filter,
-        onSelected: (_) => setState(() => _filter = filter),
-      );
+    label: Text('$label $count'),
+    selected: _filter == filter,
+    onSelected: (_) => setState(() => _filter = filter),
+  );
 }
 
 class _Progress extends StatelessWidget {
@@ -218,10 +241,17 @@ class _Progress extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('심사 진행', style: TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+              const Text(
+                '심사 진행',
+                style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+              ),
               Text(
                 '$done / $total',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF334155),
+                ),
               ),
             ],
           ),
@@ -258,7 +288,10 @@ class _Banner extends StatelessWidget {
           Icon(icon, size: 18, color: const Color(0xFF334155)),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(text, style: const TextStyle(fontSize: 13, color: Color(0xFF334155))),
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 13, color: Color(0xFF334155)),
+            ),
           ),
         ],
       ),
@@ -300,14 +333,18 @@ class _CandidateTile extends StatelessWidget {
                 height: 40,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: complete ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
+                  color: complete
+                      ? const Color(0xFFDCFCE7)
+                      : const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   candidate.number,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: complete ? const Color(0xFF15803D) : const Color(0xFF64748B),
+                    color: complete
+                        ? const Color(0xFF15803D)
+                        : const Color(0xFF64748B),
                   ),
                 ),
               ),
@@ -320,9 +357,14 @@ class _CandidateTile extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            candidate.name?.isNotEmpty == true ? candidate.name! : '${candidate.number}번',
+                            candidate.name?.isNotEmpty == true
+                                ? candidate.name!
+                                : '${candidate.number}번',
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                         if (pending) ...[
@@ -336,11 +378,13 @@ class _CandidateTile extends StatelessWidget {
                       complete
                           ? '완료 · ${formatScore(total)} / ${payload.totalMax}점'
                           : given == 0
-                              ? '아직 채점하지 않음'
-                              : '입력 중 · ${payload.leafItems.length}개 중 $given개',
+                          ? '아직 채점하지 않음'
+                          : '입력 중 · ${payload.leafItems.length}개 중 $given개',
                       style: TextStyle(
                         fontSize: 12.5,
-                        color: complete ? const Color(0xFF15803D) : const Color(0xFF94A3B8),
+                        color: complete
+                            ? const Color(0xFF15803D)
+                            : const Color(0xFF94A3B8),
                       ),
                     ),
                   ],
@@ -369,7 +413,14 @@ class _Tag extends StatelessWidget {
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color)),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
     );
   }
 }

@@ -18,7 +18,8 @@ class LocalStore {
   static const _kPayload = 'judge.payload';
   static const _kQueue = 'judge.queue';
 
-  static Future<LocalStore> open() async => LocalStore(await SharedPreferences.getInstance());
+  static Future<LocalStore> open() async =>
+      LocalStore(await SharedPreferences.getInstance());
 
   String? get token => _prefs.getString(_kToken);
 
@@ -54,8 +55,10 @@ class LocalStore {
     }
   }
 
-  Future<void> saveQueue(List<QueuedOp> value) =>
-      _prefs.setString(_kQueue, jsonEncode(value.map((e) => e.toJson()).toList()));
+  Future<void> saveQueue(List<QueuedOp> value) => _prefs.setString(
+    _kQueue,
+    jsonEncode(value.map((e) => e.toJson()).toList()),
+  );
 
   /// 로그아웃. 대기열까지 지우므로 **보내지 못한 점수가 사라진다** —
   /// 호출하는 쪽에서 대기열이 빈 것을 확인하거나 사용자에게 먼저 알려야 한다.

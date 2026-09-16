@@ -18,10 +18,13 @@ class BrandMark extends StatelessWidget {
     final cell = (size - padding * 2 - gap) / 2;
 
     Widget square(Color color) => Container(
-          width: cell,
-          height: cell,
-          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(cell * 0.12)),
-        );
+      width: cell,
+      height: cell,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(cell * 0.12),
+      ),
+    );
 
     return Container(
       width: size,
@@ -33,9 +36,21 @@ class BrandMark extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Row(children: [square(cellLight), SizedBox(width: gap), square(cellLight)]),
+          Row(
+            children: [
+              square(cellLight),
+              SizedBox(width: gap),
+              square(cellLight),
+            ],
+          ),
           SizedBox(height: gap),
-          Row(children: [square(cellLight), SizedBox(width: gap), square(cellAccent)]),
+          Row(
+            children: [
+              square(cellLight),
+              SizedBox(width: gap),
+              square(cellAccent),
+            ],
+          ),
         ],
       ),
     );
@@ -60,7 +75,11 @@ class ErrorView extends StatelessWidget {
             const SizedBox(height: 20),
             const Icon(Icons.wifi_off, size: 32, color: Color(0xFF94A3B8)),
             const SizedBox(height: 16),
-            Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF475569))),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF475569)),
+            ),
             const SizedBox(height: 24),
             FilledButton(onPressed: onRetry, child: const Text('다시 시도')),
           ],

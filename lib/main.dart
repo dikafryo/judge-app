@@ -21,6 +21,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'admin/admin_events_screen.dart';
 import 'core/brand.dart';
 import 'core/config.dart';
+import 'core/design.dart';
 import 'judge/candidates_screen.dart';
 import 'judge/entry_screen.dart';
 import 'store/judge_session.dart';
@@ -47,12 +48,7 @@ class JudgeApp extends StatelessWidget {
     return MaterialApp(
       title: '온라인 심사',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: BrandMark.cellAccent),
-        scaffoldBackgroundColor: const Color(0xFFF1F5F9),
-        appBarTheme: const AppBarTheme(backgroundColor: Colors.white, surfaceTintColor: Colors.white),
-        useMaterial3: true,
-      ),
+      theme: buildAppTheme(),
       home: const _Root(),
     );
   }
@@ -97,7 +93,10 @@ class _RootState extends ConsumerState<_Root> with WidgetsBindingObserver {
   /// 새 버전 알림. 실패는 전부 무시한다 — 업데이트 확인 때문에 앱이 멈추면 안 된다.
   Future<void> _checkForUpdate() async {
     final info = await PackageInfo.fromPlatform();
-    final release = await HttpJson.get(Uri.parse(kReleaseUrl), timeout: const Duration(seconds: 4));
+    final release = await HttpJson.get(
+      Uri.parse(kReleaseUrl),
+      timeout: const Duration(seconds: 4),
+    );
 
     if (release == null || !mounted) return;
 
@@ -113,7 +112,10 @@ class _RootState extends ConsumerState<_Root> with WidgetsBindingObserver {
         action: SnackBarAction(
           label: '받기',
           onPressed: () => unawaited(
-            launchUrl(Uri.parse(kDownloadUrl), mode: LaunchMode.externalApplication),
+            launchUrl(
+              Uri.parse(kDownloadUrl),
+              mode: LaunchMode.externalApplication,
+            ),
           ),
         ),
       ),
@@ -135,15 +137,17 @@ class _RootState extends ConsumerState<_Root> with WidgetsBindingObserver {
       ref.read(judgeSessionProvider.notifier).clearNotice();
     });
 
-    final status = ref.watch(judgeSessionProvider.select((state) => state.status));
+    final status = ref.watch(
+      judgeSessionProvider.select((state) => state.status),
+    );
 
     return switch (status) {
       SessionStatus.loading => const _Splash(),
       SessionStatus.signedOut => EntryScreen(
-          onAdmin: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const AdminEventsScreen()),
-          ),
-        ),
+        onAdmin: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const AdminEventsScreen())),
+      ),
       SessionStatus.ready => const CandidatesScreen(),
     };
   }
@@ -161,7 +165,11 @@ class _Splash extends StatelessWidget {
           children: [
             BrandMark(size: 96),
             SizedBox(height: 24),
-            SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
           ],
         ),
       ),
@@ -172,7 +180,10 @@ class _Splash extends StatelessWidget {
 /// 업데이트 확인 한 곳에서만 쓰는 최소 JSON GET.
 /// API 클라이언트(core/api.dart)는 토큰 인증 전용이라 여기 쓰지 않는다.
 class HttpJson {
-  static Future<Map<String, dynamic>?> get(Uri uri, {required Duration timeout}) async {
+  static Future<Map<String, dynamic>?> get(
+    Uri uri, {
+    required Duration timeout,
+  }) async {
     final client = HttpClient()..connectionTimeout = timeout;
 
     try {
@@ -181,7 +192,10 @@ class HttpJson {
 
       if (response.statusCode != 200) return null;
 
-      final body = await response.transform(utf8.decoder).join().timeout(timeout);
+      final body = await response
+          .transform(utf8.decoder)
+          .join()
+          .timeout(timeout);
       final decoded = jsonDecode(body);
 
       return decoded is Map<String, dynamic> ? decoded : null;

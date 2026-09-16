@@ -53,9 +53,9 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
   }
 
   Future<void> _scan() async {
-    final code = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => const ScanScreen()),
-    );
+    final code = await Navigator.of(
+      context,
+    ).push<String>(MaterialPageRoute(builder: (_) => const ScanScreen()));
 
     if (code == null || !mounted) return;
 
@@ -80,7 +80,11 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                   const SizedBox(height: 20),
                   const Text(
                     '온라인 심사 시스템',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   const Text(
@@ -94,16 +98,28 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                     autofocus: true,
                     enabled: !_busy,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(8)],
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(8),
+                    ],
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 26, letterSpacing: 8, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 26,
+                      letterSpacing: 8,
+                      fontWeight: FontWeight.w600,
+                    ),
                     decoration: InputDecoration(
                       hintText: '483920',
-                      hintStyle: const TextStyle(letterSpacing: 8, color: Color(0xFFCBD5E1)),
+                      hintStyle: const TextStyle(
+                        letterSpacing: 8,
+                        color: Color(0xFFCBD5E1),
+                      ),
                       filled: true,
                       fillColor: Colors.white,
                       contentPadding: const EdgeInsets.symmetric(vertical: 18),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                       errorText: _error,
                     ),
                     onSubmitted: _busy ? null : _enter,
@@ -116,10 +132,20 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                       onPressed: _busy ? null : () => _enter(_code.text),
                       child: _busy
                           ? const SizedBox(
-                              width: 20, height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
-                          : const Text('심사 시작하기', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                          : const Text(
+                              '심사 시작하기',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -129,12 +155,18 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                     child: OutlinedButton.icon(
                       onPressed: _busy ? null : _scan,
                       icon: const Icon(Icons.qr_code_scanner),
-                      label: const Text('QR 코드 스캔', style: TextStyle(fontSize: 16)),
+                      label: const Text(
+                        'QR 코드 스캔',
+                        style: TextStyle(fontSize: 16),
+                      ),
                     ),
                   ),
                   if (widget.onAdmin != null) ...[
                     const SizedBox(height: 24),
-                    TextButton(onPressed: widget.onAdmin, child: const Text('행사 관리자로 접속')),
+                    TextButton(
+                      onPressed: widget.onAdmin,
+                      child: const Text('행사 관리자로 접속'),
+                    ),
                   ],
                 ],
               ),

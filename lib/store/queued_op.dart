@@ -16,7 +16,8 @@ class QueuedOp {
   final Map<String, dynamic> body;
   final int? candidateId;
 
-  factory QueuedOp.scores(int candidateId, Map<String, dynamic> scores) => QueuedOp(
+  factory QueuedOp.scores(int candidateId, Map<String, dynamic> scores) =>
+      QueuedOp(
         key: 'scores:$candidateId',
         path: '/judge/candidates/$candidateId/scores',
         body: {'scores': scores},
@@ -24,18 +25,22 @@ class QueuedOp {
       );
 
   factory QueuedOp.signature(String dataUrl) => QueuedOp(
-        key: 'signature',
-        path: '/judge/signature',
-        body: {'signature': dataUrl},
-      );
+    key: 'signature',
+    path: '/judge/signature',
+    body: {'signature': dataUrl},
+  );
 
   factory QueuedOp.fromJson(Map<String, dynamic> json) => QueuedOp(
-        key: json['key'] as String,
-        path: json['path'] as String,
-        body: json['body'] as Map<String, dynamic>,
-        candidateId: json['candidate_id'] as int?,
-      );
+    key: json['key'] as String,
+    path: json['path'] as String,
+    body: json['body'] as Map<String, dynamic>,
+    candidateId: json['candidate_id'] as int?,
+  );
 
-  Map<String, dynamic> toJson() =>
-      {'key': key, 'path': path, 'body': body, 'candidate_id': candidateId};
+  Map<String, dynamic> toJson() => {
+    'key': key,
+    'path': path,
+    'body': body,
+    'candidate_id': candidateId,
+  };
 }

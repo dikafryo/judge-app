@@ -79,9 +79,9 @@ class _SignatureScreenState extends ConsumerState<SignatureScreen> {
     if (!mounted) return;
 
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('서명이 저장되었습니다.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('서명이 저장되었습니다.')));
   }
 
   @override
@@ -115,8 +115,11 @@ class _SignatureScreenState extends ConsumerState<SignatureScreen> {
                       border: Border.all(color: const Color(0xFFCBD5E1)),
                     ),
                     child: GestureDetector(
-                      onPanStart: (details) => setState(() => _strokes.add([details.localPosition])),
-                      onPanUpdate: (details) => setState(() => _strokes.last.add(details.localPosition)),
+                      onPanStart: (details) =>
+                          setState(() => _strokes.add([details.localPosition])),
+                      onPanUpdate: (details) => setState(
+                        () => _strokes.last.add(details.localPosition),
+                      ),
                       child: CustomPaint(
                         painter: _SignaturePainter(_strokes),
                         size: Size.infinite,
@@ -142,7 +145,13 @@ class _SignatureScreenState extends ConsumerState<SignatureScreen> {
                     height: 52,
                     child: FilledButton(
                       onPressed: _saving || _isEmpty ? null : _save,
-                      child: const Text('서명 저장', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        '서명 저장',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ),
