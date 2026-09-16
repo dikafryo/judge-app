@@ -19,6 +19,7 @@ class AdminEvent {
     required this.showJudgeSigns,
     required this.reportSigners,
     this.passCount,
+    this.defaultScorePercent,
   });
 
   final int id;
@@ -33,6 +34,10 @@ class AdminEvent {
   final List<ReportSigner> reportSigners;
   final int? passCount;
 
+  /// 심사위원 화면에 미리 채워 둘 점수 — 평가 항목 만점 대비 %.
+  /// null 은 "채우지 않음", 0 은 "0점으로 채움" 이라 뜻이 다르다.
+  final int? defaultScorePercent;
+
   factory AdminEvent.fromJson(Map<String, dynamic> json) => AdminEvent(
     id: json['id'] as int,
     name: json['name'] as String? ?? '',
@@ -45,6 +50,7 @@ class AdminEvent {
         .map((e) => ReportSigner.fromJson(e as Map<String, dynamic>))
         .toList(),
     passCount: json['pass_count'] as int?,
+    defaultScorePercent: json['default_score_percent'] as int?,
   );
 }
 

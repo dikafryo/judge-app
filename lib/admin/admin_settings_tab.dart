@@ -126,6 +126,60 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
         method: admin.event.scoringMethod,
         isBlind: admin.event.isBlind,
         passCount: int.tryParse(value.trim()),
+        defaultScorePercent: admin.event.defaultScorePercent,
+      ),
+    );
+  }
+
+  Future<void> _askDefaultScore(AdminApi admin) async {
+    final controller = TextEditingController(
+      text: admin.event.defaultScorePercent?.toString() ?? '',
+    );
+
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('심사 기본점수'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(
+            labelText: '평가 항목 만점 대비 %',
+            helperText:
+                '심사위원이 화면을 열면 각 평가 항목 만점의 이 비율만큼 점수가 미리 입력되어 있고, '
+                '위아래로 조정해 심사를 보다 쉽게 할 수 있게 합니다. '
+                '예를 들어 90이면 20점짜리 항목에 18점이 채워집니다. 비우면 채우지 않습니다.',
+            helperMaxLines: 5,
+            suffixText: '%',
+          ),
+          onSubmitted: (text) => Navigator.pop(context, text),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+
+    if (value == null) return;
+
+    // 100 을 넘겨 보내면 서버가 거절한다. 여기서 범위 안으로 맞춘다.
+    final parsed = int.tryParse(value.trim());
+
+    await _apply(
+      (admin) => admin.updateScoringMethod(
+        method: admin.event.scoringMethod,
+        isBlind: admin.event.isBlind,
+        passCount: admin.event.passCount,
+        defaultScorePercent: parsed?.clamp(0, 100),
       ),
     );
   }
@@ -216,8 +270,19 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
                         method: admin.event.scoringMethod,
                         isBlind: value,
                         passCount: admin.event.passCount,
+                        defaultScorePercent: admin.event.defaultScorePercent,
                       ),
                     ),
+            ),
+            ListTile(
+              title: const Text('심사 기본점수'),
+              subtitle: Text(
+                event.defaultScorePercent == null
+                    ? '채우지 않음'
+                    : '각 항목 만점의 ${event.defaultScorePercent}%를 미리 입력',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _busy ? null : () => _askDefaultScore(admin),
             ),
             ListTile(
               title: const Text('선정자 수'),
@@ -284,6 +349,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
       method: method,
       isBlind: admin.event.isBlind,
       passCount: admin.event.passCount,
+      defaultScorePercent: admin.event.defaultScorePercent,
     ),
   );
 }

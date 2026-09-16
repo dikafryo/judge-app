@@ -105,10 +105,12 @@ class AdminApi {
     required String method,
     required bool isBlind,
     int? passCount,
+    int? defaultScorePercent,
   }) => _api.put('/admin/scoring-method', {
     'scoring_method': method,
     'is_blind': isBlind,
     'pass_count': passCount,
+    'default_score_percent': defaultScorePercent,
   }, token: token);
 
   /// 심사 마감/재개. 마감하면 접속 코드와 발급된 앱 토큰이 함께 회수된다.

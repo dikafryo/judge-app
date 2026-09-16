@@ -56,6 +56,7 @@ class FakeAdminServer {
         'scoring_method': 'trimmed',
         'scoring_note': '최고·최저 제외',
         'pass_count': 2,
+        'default_score_percent': 90,
         'show_judge_signs': false,
         'report_signers': [
           {'role': '기록자', 'dept': '총무과', 'position': '주무관', 'name': '김기록'},
@@ -102,6 +103,9 @@ class FakeAdminServer {
     }
     if (path.endsWith('/admin/toggle-open')) {
       return _json({'message': '심사가 마감되었습니다.', 'is_open': false});
+    }
+    if (path.endsWith('/admin/scoring-method')) {
+      return _json({'message': '저장되었습니다.'});
     }
     if (path.endsWith('/admin/report-signers')) {
       return _json({'message': '최종집계표 설정이 저장되었습니다.'});
@@ -252,5 +256,29 @@ void main() {
     expect(dashboard.rows.last.avg, isNull, reason: '아직 채점 안 된 대상은 순위가 없다');
     expect(dashboard.passTie, isNotNull, reason: '선정 경계 동점은 발표 전에 알려야 한다');
     expect(dashboard.judges.single.done, 3);
+  });
+
+  group('심사 기본점수', () {
+    test('행사 정보에서 읽어 온다', () async {
+      final server = FakeAdminServer();
+      final admin = await AdminApi.signIn(Api(client: server.client), 3, 'pw');
+
+      expect(admin.event.defaultScorePercent, 90);
+    });
+
+    test('집계 설정을 저장할 때 함께 보낸다', () async {
+      final server = FakeAdminServer();
+      final admin = await AdminApi.signIn(Api(client: server.client), 3, 'pw');
+
+      await admin.updateScoringMethod(
+        method: 'all',
+        isBlind: true,
+        passCount: 2,
+        defaultScorePercent: 90,
+      );
+
+      // 빠뜨리면 서버가 값을 그대로 두므로 조용히 안 바뀐다 — 보냈는지까지 고정한다
+      expect(server.bodies.last['default_score_percent'], 90);
+    });
   });
 }
