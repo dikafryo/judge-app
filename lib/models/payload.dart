@@ -141,6 +141,7 @@ class JudgePayload {
     required this.scores,
     required this.hasSignature,
     required this.totalMax,
+    this.defaultScorePercent,
   });
 
   final int judgeId;
@@ -154,6 +155,18 @@ class JudgePayload {
 
   final bool hasSignature;
   final int totalMax;
+
+  /// 아직 채점하지 않은 항목을 만점의 몇 %로 미리 채울지. null 이면 비워 둔다.
+  /// 0 은 "0점으로 채움" 이라 null 과 뜻이 다르다.
+  final int? defaultScorePercent;
+
+  /// 미리 채워 둘 점수. 입력 단위가 0.5점이라 그 단위로 맞춘다.
+  double? defaultScoreFor(CriterionItem item) {
+    final percent = defaultScorePercent;
+    if (percent == null) return null;
+
+    return (item.maxScore * percent / 100 * 2).round() / 2;
+  }
 
   /// 점수를 넣어야 하는 말단 항목 전체. 완료 판정과 전송 본문이 모두 이 목록을 기준으로 한다.
   List<CriterionItem> get leafItems => [for (final g in groups) ...g.items];
@@ -186,6 +199,7 @@ class JudgePayload {
     scores: scores ?? this.scores,
     hasSignature: hasSignature ?? this.hasSignature,
     totalMax: totalMax,
+    defaultScorePercent: defaultScorePercent,
   );
 
   factory JudgePayload.fromJson(Map<String, dynamic> json) {
@@ -213,6 +227,7 @@ class JudgePayload {
       },
       hasSignature: json['hasSignature'] as bool? ?? false,
       totalMax: (json['totalMax'] as num?)?.toInt() ?? 0,
+      defaultScorePercent: (json['defaultScorePercent'] as num?)?.toInt(),
     );
   }
 
@@ -241,5 +256,6 @@ class JudgePayload {
     },
     'hasSignature': hasSignature,
     'totalMax': totalMax,
+    'defaultScorePercent': defaultScorePercent,
   };
 }

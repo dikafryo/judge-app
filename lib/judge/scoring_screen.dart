@@ -54,7 +54,11 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
   void _loadDraft(JudgePayload payload) {
     final saved = payload.scoresOf(payload.candidates[_index].id);
 
-    _draft = {for (final item in payload.leafItems) item.id: saved[item.id]};
+    // 채점한 적 없는 항목만 기본점수로 채운다 — 이미 낸 점수를 덮으면 안 된다
+    _draft = {
+      for (final item in payload.leafItems)
+        item.id: saved[item.id] ?? payload.defaultScoreFor(item),
+    };
     _dirty = false;
   }
 

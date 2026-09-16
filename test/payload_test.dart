@@ -97,4 +97,50 @@ void main() {
     expect(formatScore(8), '8');
     expect(formatScore(8.5), '8.5');
   });
+
+  group('심사 기본점수', () {
+    CriterionItem item(int max) =>
+        CriterionItem(id: 1, name: '항목', maxScore: max, description: null);
+
+    test('만점의 비율로 계산한다', () {
+      final payload = JudgePayload.fromJson({
+        ...sample(),
+        'defaultScorePercent': 90,
+      });
+
+      expect(payload.defaultScoreFor(item(20)), 18);
+      expect(payload.defaultScoreFor(item(10)), 9);
+      // 입력 단위가 0.5 점이라 그 단위로 맞춘다 (7 * 0.9 = 6.3 → 6.5)
+      expect(payload.defaultScoreFor(item(7)), 6.5);
+    });
+
+    test('없으면 채우지 않는다', () {
+      final payload = JudgePayload.fromJson(sample());
+
+      expect(payload.defaultScorePercent, isNull);
+      expect(payload.defaultScoreFor(item(20)), isNull);
+    });
+
+    test('0 은 비운 것과 다르다', () {
+      final payload = JudgePayload.fromJson({
+        ...sample(),
+        'defaultScorePercent': 0,
+      });
+
+      expect(payload.defaultScoreFor(item(20)), 0);
+    });
+
+    test('기기에 저장했다가 되읽어도 남는다', () {
+      final payload = JudgePayload.fromJson({
+        ...sample(),
+        'defaultScorePercent': 90,
+      });
+
+      final again = JudgePayload.fromJson(
+        jsonDecode(jsonEncode(payload.toJson())) as Map<String, dynamic>,
+      );
+
+      expect(again.defaultScorePercent, 90);
+    });
+  });
 }
