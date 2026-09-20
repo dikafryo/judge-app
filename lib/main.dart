@@ -111,15 +111,18 @@ class _RootState extends ConsumerState<_Root> with WidgetsBindingObserver {
 
     if (latest is! int || latest <= current) return;
 
-    final fromPlay = info.installerStore == kPlayInstaller;
+    final url = updateTargetUrl(info.installerStore);
+
+    // 받을 곳이 없으면 안내하지 않는다 — 아이폰은 앱스토어에 올라가기 전까지 받을 곳이 없다.
+    if (url == null) return;
 
     setState(() {
       _update = _Update(
         version: release['version'] is String
             ? release['version'] as String
             : '',
-        url: updateTargetUrl(info.installerStore),
-        fromPlay: fromPlay,
+        url: url,
+        fromPlay: info.installerStore == kPlayInstaller,
       );
     });
   }
@@ -223,7 +226,11 @@ class _UpdateBanner extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      update.fromPlay ? '플레이스토어에서 업데이트합니다' : '받는 곳으로 이동합니다',
+                      update.fromPlay
+                          ? '플레이스토어에서 업데이트합니다'
+                          : Platform.isIOS
+                          ? '앱스토어에서 업데이트합니다'
+                          : '받는 곳으로 이동합니다',
                       style: const TextStyle(
                         fontSize: 11.5,
                         color: AppColor.faint,

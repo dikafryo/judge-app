@@ -1,5 +1,5 @@
 name: judge_app
-description: 온라인 심사 시스템(judge.sw4u.kr) 안드로이드 앱. 심사위원·관리자 화면 모두 네이티브.
+description: 온라인 심사 시스템(judge.sw4u.kr) 안드로이드·아이폰 앱. 심사위원·관리자 화면 모두 네이티브.
 publish_to: 'none'
 
 # X.Y.Z+build — build_and_publish.sh 가 이 형식을 정규식으로 파싱하므로 형식을 지킬 것.

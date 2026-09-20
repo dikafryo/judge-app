@@ -1,4 +1,4 @@
-# 온라인 심사 시스템 — 안드로이드 앱
+# 온라인 심사 시스템 — 안드로이드 · 아이폰 앱
 
 **네이티브**(Flutter)다.
 처음에 Web View만 붙여서 웹을 그대로 안드로이드로 보여줬는데, 웹과 앱이 똑같으니. 이건 그냥 웹을 여는게 맞다는 생각이 들어서,
@@ -47,6 +47,29 @@ flutter analyze
 flutter test
 flutter build apk --debug   # 릴리스 키 없이 컴파일만 확인
 ```
+
+## 아이폰(iOS) 앱
+
+안드로이드와 **같은 Flutter 코드**(`lib/`)를 쓴다. 빌드는 맥에서만 되고,
+Xcode 27 / iOS 27 을 지원하는 **Flutter 3.47 이상**이 필요하다. 안드로이드
+배포 환경도 같은 **Flutter 3.47.5** 로 맞춰 두어 `pubspec.lock` 을 공유한다.
+
+```bash
+cd ~/Desktop/developer/judge
+export PATH="$HOME/development/flutter/bin:$PATH"
+
+flutter pub get
+flutter analyze
+flutter test
+flutter build ios --simulator --debug   # 시뮬레이터 확인 (서명 불필요)
+open ios/Runner.xcworkspace             # 실기기·아카이브는 Xcode 에서, Apple 개발자 계정 필요
+```
+
+- 번들 ID 는 `kr.sw4u.judgeapp` 다. 애플은 밑줄을 못 써서 안드로이드
+  `kr.sw4u.judge_app` 과 다르다.
+- QR 스캔 때문에 `Info.plist` 에 카메라 권한 설명이 들어 있다.
+- 앱스토어 출시 전까지는 아이폰에서 새 버전 안내를 띄우지 않는다.
+  출시 후 `lib/core/config.dart` 의 `kAppStoreUrl` 을 채우면 켜진다.
 
 ### QR 인식은 ML Kit 사용으로 구글서비스에서 받아오므로, 인터넷이 연결되어있지 않으면 QR스캔 불가함.
 
