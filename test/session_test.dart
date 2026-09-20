@@ -1,6 +1,7 @@
 // 오프라인 대기열은 이 앱의 핵심이자, 잘못되면 심사위원이 넣은 점수가 사라지는 곳이다.
 // 실기기 없이 검증할 수 있도록 서버를 가짜 클라이언트로 세우고 상태 기계를 확인한다.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -21,10 +22,17 @@ class FakeServer {
   bool offline = false;
   int? failWith;
 
+  /// TLS 오류처럼 ApiException 으로 감싸지지 않는 실패를 흉내 낸다.
+  bool crash = false;
+
+  /// 점수 응답을 여기서 붙잡아 둔다 — 전송 중에 다른 일이 끼어드는 상황을 만든다.
+  Completer<void>? hold;
+
   final List<Map<String, dynamic>> received = [];
 
   http.Client get client => MockClient((request) async {
     if (offline) throw const SocketException('오프라인');
+    if (crash) throw const HandshakeException('TLS 실패');
 
     final path = request.url.path;
 
@@ -43,6 +51,8 @@ class FakeServer {
     }
 
     if (path.contains('/scores')) {
+      if (hold != null) await hold!.future;
+
       scoreCalls += 1;
       received.add(jsonDecode(request.body) as Map<String, dynamic>);
 
@@ -233,5 +243,55 @@ void main() {
 
     expect(server.signatureCalls, 1);
     expect(session.state.pendingCount, 0);
+  });
+
+  test('예상 못 한 실패(TLS 등) 뒤에도 다음 전송이 막히지 않는다', () async {
+    // 여기서 syncing 이 켜진 채 남으면 대기열이 영영 비워지지 않는다 — 실제로 났던 사고다.
+    final (session, server, store) = await signedIn();
+
+    server.crash = true;
+    await session.saveScores(102, {11: 20, 12: 20, 2: 40});
+
+    expect(session.state.pendingCount, 1);
+    expect(session.state.syncing, isFalse, reason: '전송 플래그가 고착되면 안 된다');
+    expect(session.state.serverError, isTrue);
+
+    server.crash = false;
+    await session.flush();
+
+    expect(session.state.pendingCount, 0);
+    expect(store.queue, isEmpty);
+    expect(session.state.serverError, isFalse);
+  });
+
+  test('전송하는 동안 저장한 점수도 유실되지 않는다', () async {
+    final (session, server, store) = await signedIn();
+
+    server.hold = Completer<void>();
+
+    final first = session.saveScores(102, {11: 20, 12: 20, 2: 40});
+    await Future<void>.delayed(Duration.zero);
+
+    // 첫 건이 아직 서버에 물려 있는 사이에 다른 대상을 저장한다.
+    await session.saveScores(103, {11: 10, 12: 10, 2: 10});
+
+    server.hold!.complete();
+    await first;
+    await session.flush();
+
+    expect(server.scoreCalls, 2, reason: '두 건 모두 서버로 가야 한다');
+    expect(session.state.pendingCount, 0);
+    expect(store.queue, isEmpty);
+  });
+
+  test('서버 장애(5xx)는 오프라인과 다르게 알린다', () async {
+    final (session, server, _) = await signedIn();
+
+    server.failWith = 500;
+    await session.saveScores(102, {11: 20, 12: 20, 2: 40});
+
+    expect(session.state.pendingCount, 1);
+    expect(session.state.offline, isFalse);
+    expect(session.state.serverError, isTrue, reason: '"전송 중"으로 보이면 원인을 오해한다');
   });
 }

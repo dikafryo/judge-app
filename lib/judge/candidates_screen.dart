@@ -151,9 +151,13 @@ class _CandidatesScreenState extends ConsumerState<CandidatesScreen> {
             _Banner(
               color: const Color(0xFFE0E7FF),
               icon: Icons.cloud_upload_outlined,
-              text: session.offline
-                  ? '연결이 끊겨 ${session.pendingCount}건이 기기에 보관 중입니다. 연결되면 자동으로 전송됩니다.'
-                  : '${session.pendingCount}건 전송 중입니다.',
+              text: switch (session) {
+                final s when s.offline =>
+                  '연결이 끊겨 ${s.pendingCount}건이 기기에 보관 중입니다. 연결되면 자동으로 전송됩니다.',
+                final s when s.serverError =>
+                  '서버가 ${s.pendingCount}건을 받지 못했습니다. 자동으로 다시 시도하는 중입니다.',
+                final s => '${s.pendingCount}건 전송 중입니다.',
+              },
             ),
           _Progress(done: done, total: total),
           Padding(

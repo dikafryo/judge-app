@@ -122,64 +122,78 @@ class JudgeSession extends StateNotifier<JudgeState> {
   }
 
   /// 대기열을 순서대로 비운다. 연결이 없으면 그대로 두고 다음 기회를 기다린다.
+  ///
+  /// 보낼 것은 매번 [state] 에서 다시 꺼낸다 — 전송 중에 심사위원이 새로 저장한 건을
+  /// 옛 목록으로 덮어써 버리면 그 입력이 조용히 사라진다.
   Future<void> flush() async {
     if (state.syncing || state.queue.isEmpty || _token == null) return;
 
     state = state.copyWith(syncing: true);
 
-    final remaining = [...state.queue];
-    var offline = false;
-    String? notice;
+    try {
+      while (state.queue.isNotEmpty) {
+        final op = state.queue.first;
 
-    while (remaining.isNotEmpty) {
-      try {
-        await _api.put(
-          remaining.first.path,
-          remaining.first.body,
-          token: _token,
-        );
-        remaining.removeAt(0);
-      } on ApiException catch (e) {
-        if (e.isExpired) {
-          await _expire();
+        try {
+          await _api.put(op.path, op.body, token: _token);
+          await _drop(op);
+          state = state.copyWith(offline: false, serverError: false);
+        } on ApiException catch (e) {
+          if (e.isExpired) {
+            await _expire();
 
-          return;
-        }
+            return;
+          }
 
-        if (e.isOffline) {
-          offline = true;
+          if (e.isOffline) {
+            state = state.copyWith(offline: true, serverError: false);
+            break;
+          }
+
+          if (e.isLocked) {
+            // 마감됐다. 남은 것을 계속 보내봐야 전부 같은 결과다.
+            _markClosed();
+            await _store.saveQueue(const []);
+            state = state.copyWith(
+              queue: const [],
+              notice: e.message,
+              offline: false,
+              serverError: false,
+            );
+            break;
+          }
+
+          if (e.isPermanent) {
+            // 서버가 거절한 내용이다. 다시 보내도 같으므로 빼고 사유를 알린다.
+            await _drop(op);
+            state = state.copyWith(notice: e.message);
+
+            continue;
+          }
+
+          // 5xx · 429 — 서버 쪽 일시 장애. 남겨 두고 나중에 다시 보낸다.
+          state = state.copyWith(serverError: true, offline: false);
           break;
         }
-
-        if (e.isLocked) {
-          // 마감됐다. 남은 것을 계속 보내봐야 전부 같은 결과다.
-          _markClosed();
-          notice = e.message;
-          remaining.clear();
-          break;
-        }
-
-        if (e.isPermanent) {
-          // 서버가 거절한 내용이다. 다시 보내도 같으므로 빼고 사유를 알린다.
-          remaining.removeAt(0);
-          notice = e.message;
-
-          continue;
-        }
-
-        // 5xx — 서버 쪽 일시 장애. 남겨 두고 나중에 다시 보낸다.
-        break;
       }
+    } catch (_) {
+      // TLS 오류처럼 예상 못 한 실패. 여기서 syncing 을 되돌리지 않으면 다음 전송이
+      // 전부 위 가드에 막혀 **대기열이 영영 비워지지 않는다.** 대기열은 그대로 둔다.
+      state = state.copyWith(serverError: true);
+    } finally {
+      if (mounted) state = state.copyWith(syncing: false);
     }
+  }
 
-    await _store.saveQueue(remaining);
+  /// 보낸 작업 하나를 대기열에서 뺀다.
+  ///
+  /// 키가 아니라 **그 객체 자체**를 뺀다. 전송 중에 같은 대상을 다시 저장하면
+  /// [_enqueue] 가 같은 키로 새 객체를 넣어 두는데, 키로 지우면 그 새 입력까지 함께 사라진다.
+  Future<void> _drop(QueuedOp op) async {
+    final queue = state.queue.where((e) => !identical(e, op)).toList();
 
-    state = state.copyWith(
-      queue: remaining,
-      syncing: false,
-      offline: offline,
-      notice: notice,
-    );
+    await _store.saveQueue(queue);
+    state = state.copyWith(queue: queue);
   }
 
   /// 전송을 끝낸 뒤 서버 상태로 맞춘다.
@@ -201,7 +215,11 @@ class JudgeSession extends StateNotifier<JudgeState> {
         );
 
         await _store.savePayload(payload);
-        state = state.copyWith(payload: payload, offline: false);
+        state = state.copyWith(
+          payload: payload,
+          offline: false,
+          serverError: false,
+        );
       } on ApiException catch (e) {
         if (e.isExpired) {
           await _expire();
@@ -209,7 +227,10 @@ class JudgeSession extends StateNotifier<JudgeState> {
           return;
         }
 
-        state = state.copyWith(offline: e.isOffline);
+        state = state.copyWith(
+          offline: e.isOffline,
+          serverError: !e.isOffline,
+        );
       }
     } finally {
       _refreshing = false;

@@ -10,6 +10,7 @@ class JudgeState {
     this.queue = const [],
     this.syncing = false,
     this.offline = false,
+    this.serverError = false,
     this.notice,
   });
 
@@ -18,6 +19,10 @@ class JudgeState {
   final List<QueuedOp> queue;
   final bool syncing;
   final bool offline;
+
+  /// 연결은 되는데 서버가 받아 주지 않는 상태(5xx·429·예상 못 한 실패).
+  /// 오프라인과 구분해야 심사위원에게 "보내는 중"이라고 잘못 안내하지 않는다.
+  final bool serverError;
   final String? notice;
 
   int get pendingCount => queue.length;
@@ -31,6 +36,7 @@ class JudgeState {
     List<QueuedOp>? queue,
     bool? syncing,
     bool? offline,
+    bool? serverError,
     String? notice,
     bool clearNotice = false,
     bool clearPayload = false,
@@ -40,6 +46,7 @@ class JudgeState {
     queue: queue ?? this.queue,
     syncing: syncing ?? this.syncing,
     offline: offline ?? this.offline,
+    serverError: serverError ?? this.serverError,
     notice: clearNotice ? null : (notice ?? this.notice),
   );
 }
