@@ -15,11 +15,27 @@
 ```
 lib/
   core/      config(서버 주소 고정) · api(Bearer 토큰 클라이언트) · brand(아이콘 마크)
+             design(색·모서리·테마 + 공용 위젯 — 화면에서 색을 직접 적지 않는다)
   models/    payload — /api/v1/judge/me 응답 = 오프라인 동작의 전부
   store/     local_store(기기 저장) · judge_session(상태·전송 대기열) · queued_op
-  judge/     entry · scan(QR) · candidates · scoring · signature
+  judge/     entry · scan(QR) · candidates · scoring · signature · sync_strip(연결 상태 띠)
   admin/     events(행사 선택·생성) · home(탭) · dashboard · setup_tabs · settings
 ```
+
+### 오프라인 동작 (심사위원)
+
+입장할 때 받은 payload 를 기기에 저장하므로, 연결이 끊겨도 목록·배점 항목·이미 넣은
+점수가 그대로 보이고 새 점수도 계속 넣을 수 있다. 못 보낸 것은 대기열에 쌓였다가
+연결이 돌아오면 자동으로 전송된다.
+
+- **대기열은 같은 대상이면 덮어쓴다.** 두 API 모두 전체 교체(PUT)라 마지막 상태만 보내면 된다.
+- **재시도 간격은 실패가 이어질수록 늘어난다** (5초 → 최대 60초). 비행기모드인 심사장에서
+  5초마다 소켓을 열어 봐야 배터리만 녹는다. 성공하면 곧바로 5초로 돌아온다.
+- **연결 상태 띠(`SyncStrip`)는 목록과 채점 화면 양쪽에 뜬다.** 채점 중에만 목록으로
+  돌아가야 알 수 있으면, 그 사이 넣은 점수가 어디 있는지 알 길이 없다.
+- 띠의 `다시 시도`, 목록의 **당겨서 새로고침** 은 늘어난 간격을 즉시 되돌린다.
+- 마지막으로 서버와 통한 시각을 진행 카드에 적는다 — 대기열이 비어 있어도 화면이
+  오래됐을 수 있기 때문이다.
 
 ### 심사위원과 관리자는 저장 정책이 정반대다
 

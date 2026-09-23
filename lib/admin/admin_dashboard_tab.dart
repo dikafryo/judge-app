@@ -80,13 +80,13 @@ class _AdminDashboardTabState extends ConsumerState<AdminDashboardTab> {
         children: [
           if (_error != null)
             _Notice(
-              color: const Color(0xFFFEE2E2),
+              color: AppColor.dangerSoft,
               icon: Icons.cloud_off,
               text: '최신이 아닙니다 — $_error',
             ),
           if (data.passTie != null)
             const _Notice(
-              color: Color(0xFFFEF3C7),
+              color: AppColor.warnSoft,
               icon: Icons.warning_amber_outlined,
               text: '선정 경계에 동점이 있습니다. 발표 전에 동점을 해소해야 합니다.',
             ),
@@ -187,7 +187,7 @@ class _JudgeProgressCard extends StatelessWidget {
                       child: Icon(
                         Icons.draw_outlined,
                         size: 16,
-                        color: Color(0xFF15803D),
+                        color: AppColor.success,
                       ),
                     ),
                   Text(
@@ -196,7 +196,7 @@ class _JudgeProgressCard extends StatelessWidget {
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
                       color: judge.done >= judge.total && judge.total > 0
-                          ? const Color(0xFF15803D)
+                          ? AppColor.success
                           : AppColor.muted,
                     ),
                   ),
@@ -234,7 +234,7 @@ class _RankTile extends StatelessWidget {
         border: tie
             ? Border.all(color: const Color(0xFFF59E0B), width: 1.5)
             : selected
-            ? Border.all(color: const Color(0xFF4F46E5), width: 1.5)
+            ? Border.all(color: AppColor.accent, width: 1.5)
             : null,
       ),
       child: Row(
@@ -274,7 +274,7 @@ class _RankTile extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF4F46E5),
+                  color: AppColor.accent,
                 ),
               ),
               if (tie)
@@ -285,7 +285,7 @@ class _RankTile extends StatelessWidget {
               else if (selected)
                 const Text(
                   '선정',
-                  style: TextStyle(fontSize: 11, color: Color(0xFF4F46E5)),
+                  style: TextStyle(fontSize: 11, color: AppColor.accent),
                 ),
             ],
           ),

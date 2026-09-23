@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api.dart';
@@ -20,15 +21,25 @@ class JudgeSession extends StateNotifier<JudgeState> {
     this._api,
     this._store, {
     this.refreshInterval = const Duration(seconds: 5),
+    this.maxRefreshInterval = const Duration(seconds: 60),
   }) : super(const JudgeState());
 
   final Api _api;
   final LocalStore _store;
+
+  /// 서버가 잘 받아 줄 때의 확인 주기.
   final Duration refreshInterval;
+
+  /// 연달아 실패할 때 늘려 갈 수 있는 최대 주기.
+  final Duration maxRefreshInterval;
 
   String? _token;
   Timer? _refreshTimer;
+  bool _polling = false;
   bool _refreshing = false;
+
+  /// 연속 실패 횟수. 주기를 얼마나 늘릴지 정하는 데만 쓴다.
+  int _failures = 0;
 
   /// 앱을 켤 때 기기에 저장된 세션을 되살린다. 여기서 네트워크를 기다리지 않는 것이 요점 —
   /// 연결이 없어도 즉시 심사 화면이 뜬다.
@@ -66,12 +77,60 @@ class JudgeSession extends StateNotifier<JudgeState> {
     await _store.savePayload(payload);
     await _store.saveQueue(const []);
 
-    state = JudgeState(status: SessionStatus.ready, payload: payload);
+    state = JudgeState(
+      status: SessionStatus.ready,
+      payload: payload,
+      lastSyncedAt: DateTime.now(),
+    );
     _startPolling();
   }
 
+  /// 다음 확인까지 기다릴 시간.
+  ///
+  /// 실패가 이어지면 주기를 곱절로 늘린다. 비행기모드인 심사장에서 5초마다
+  /// 소켓을 열면 배터리만 녹고 달라지는 것이 없다. 성공하면 곧바로 원래 주기로 돌아온다.
+  Duration get _nextDelay {
+    if (_failures == 0) return refreshInterval;
+
+    final scaled = refreshInterval * (1 << _failures.clamp(1, 4));
+
+    return scaled > maxRefreshInterval ? maxRefreshInterval : scaled;
+  }
+
+  /// 테스트에서 주기가 실제로 늘고 줄었는지 확인하는 창. 타이머를 실제로 기다리면
+  /// 테스트가 1분씩 걸리므로, 계산 결과만 들여다본다.
+  @visibleForTesting
+  Duration get debugNextDelay => _nextDelay;
+
   void _startPolling() {
-    _refreshTimer ??= Timer.periodic(refreshInterval, (_) => unawaited(sync()));
+    if (_polling) return;
+    _polling = true;
+    _scheduleNext();
+  }
+
+  void _scheduleNext() {
+    _refreshTimer?.cancel();
+
+    if (!_polling || !mounted) return;
+
+    _refreshTimer = Timer(_nextDelay, () async {
+      await sync();
+      _scheduleNext();
+    });
+  }
+
+  void _stopPolling() {
+    _polling = false;
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+  }
+
+  /// 사용자가 직접 "지금 전송"을 눌렀을 때. 늘어나 있던 주기를 되돌리고 즉시 시도한다.
+  /// 자동 재시도를 기다리는 것 말고 할 수 있는 일을 남겨 두는 것이 요점이다.
+  Future<void> syncNow() async {
+    _failures = 0;
+    await sync();
+    _scheduleNext();
   }
 
   /// 점수 저장. 말단 항목 전체를 보낸다 — 부분 전송을 하지 않아야 'null 은 삭제' 규칙이
@@ -137,7 +196,11 @@ class JudgeSession extends StateNotifier<JudgeState> {
         try {
           await _api.put(op.path, op.body, token: _token);
           await _drop(op);
-          state = state.copyWith(offline: false, serverError: false);
+          state = state.copyWith(
+            offline: false,
+            serverError: false,
+            lastSyncedAt: DateTime.now(),
+          );
         } on ApiException catch (e) {
           if (e.isExpired) {
             await _expire();
@@ -207,7 +270,13 @@ class JudgeSession extends StateNotifier<JudgeState> {
     try {
       await flush();
 
-      if (state.queue.isNotEmpty || _token == null) return;
+      if (state.queue.isNotEmpty || _token == null) {
+        // 아직 못 보낸 것이 남았다 = 이번 시도도 실패다. 여기서 세지 않으면
+        // 대기열이 있는 동안에는 주기가 영영 5초에 머문다.
+        if (state.offline || state.serverError) _failures += 1;
+
+        return;
+      }
 
       try {
         final payload = JudgePayload.fromJson(
@@ -215,10 +284,12 @@ class JudgeSession extends StateNotifier<JudgeState> {
         );
 
         await _store.savePayload(payload);
+        _failures = 0;
         state = state.copyWith(
           payload: payload,
           offline: false,
           serverError: false,
+          lastSyncedAt: DateTime.now(),
         );
       } on ApiException catch (e) {
         if (e.isExpired) {
@@ -227,6 +298,7 @@ class JudgeSession extends StateNotifier<JudgeState> {
           return;
         }
 
+        _failures += 1;
         state = state.copyWith(
           offline: e.isOffline,
           serverError: !e.isOffline,
@@ -256,8 +328,7 @@ class JudgeSession extends StateNotifier<JudgeState> {
   /// 토큰이 죽었다. 행사를 마감하면 서버가 코드와 토큰을 함께 회수하므로,
   /// 사용자에게는 "없는 주소"가 아니라 **코드 만료**로 설명해야 원인을 안다.
   Future<void> _expire() async {
-    _refreshTimer?.cancel();
-    _refreshTimer = null;
+    _stopPolling();
     await _store.clear();
     _token = null;
 
@@ -270,8 +341,7 @@ class JudgeSession extends StateNotifier<JudgeState> {
   Future<void> signOut() async {
     final token = _token;
 
-    _refreshTimer?.cancel();
-    _refreshTimer = null;
+    _stopPolling();
     _token = null;
     await _store.clear();
     state = const JudgeState(status: SessionStatus.signedOut);
@@ -289,7 +359,7 @@ class JudgeSession extends StateNotifier<JudgeState> {
 
   @override
   void dispose() {
-    _refreshTimer?.cancel();
+    _stopPolling();
     super.dispose();
   }
 }

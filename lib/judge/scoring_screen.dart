@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/design.dart';
 import '../models/payload.dart';
 import '../store/judge_session.dart';
+import 'sync_strip.dart';
 
 /// 채점 화면.
 ///
@@ -65,6 +66,8 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
 
   double get _total =>
       _draft.values.fold(0, (sum, value) => sum + (value ?? 0));
+
+  int get _filled => _draft.values.where((value) => value != null).length;
 
   void _set(CriterionItem item, double? value) {
     setState(() {
@@ -183,35 +186,58 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
     final locked = !payload.event.isOpen;
     final last = _index >= payload.candidates.length - 1;
 
+    final leaves = payload.leafItems.length;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
+        titleSpacing: 8,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              candidate.label,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-            ),
+            Text(candidate.label, overflow: TextOverflow.ellipsis),
             Text(
               '${_index + 1} / ${payload.candidates.length}'
               '${candidate.affiliation?.isNotEmpty == true ? ' · ${candidate.affiliation}' : ''}',
-              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: AppColor.muted,
+              ),
             ),
           ],
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                '${formatScore(_total)} / ${payload.totalMax}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF4F46E5),
+          // 합계는 채점 내내 눈이 가는 숫자다. 알약 안에 넣어 제목과 섞이지 않게 한다.
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColor.accentSoft,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  formatScore(_total),
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: AppColor.accent,
+                  ),
                 ),
-              ),
+                Text(
+                  ' / ${payload.totalMax}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColor.accent,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -219,40 +245,46 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
       body: Column(
         children: [
           if (locked)
-            Container(
-              width: double.infinity,
-              color: const Color(0xFFFEF3C7),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: const Text(
-                '심사가 마감되어 점수를 수정할 수 없습니다.',
-                style: TextStyle(fontSize: 13, color: Color(0xFF92400E)),
-              ),
+            const StatusStrip(
+              icon: Icons.lock_outline,
+              text: '심사가 마감되어 점수를 수정할 수 없습니다.',
+              foreground: AppColor.warn,
+              background: AppColor.warnSoft,
             ),
+          // 채점 중에도 연결 상태가 보여야 한다. 목록으로 돌아가야만 알 수 있으면
+          // 그 사이 넣은 점수가 어디에 있는지 심사위원이 알 길이 없다.
+          SyncStrip(session: ref.watch(judgeSessionProvider)),
           Expanded(
             child: ListView(
               controller: _scroll,
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
               children: [
+                SectionCard(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                  child: ProgressRow(
+                    label: '입력한 항목',
+                    value: _filled,
+                    total: leaves,
+                  ),
+                ),
                 for (final group in payload.groups) ...[
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 8, top: 4),
+                    padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
                     child: Row(
                       children: [
                         Expanded(
                           child: Text(
                             group.name,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF334155),
-                            ),
+                            style: SectionCard.sectionTitleStyle,
                           ),
                         ),
                         Text(
                           '${group.maxScore}점',
                           style: const TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF94A3B8),
+                            fontWeight: FontWeight.w700,
+                            color: AppColor.muted,
                           ),
                         ),
                       ],
@@ -278,7 +310,7 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
             canPrev: _index > 0,
             enabled: !locked,
             dirty: _dirty,
-            lastLabel: last ? '저장하고 마치기' : '저장하고 다음 →',
+            lastLabel: last ? '저장하고 마치기' : '저장하고 다음',
             onPrev: () => _goPrev(payload),
             onNext: () => _saveAndNext(payload),
           ),
@@ -311,12 +343,17 @@ class _ScoreRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final empty = value == null;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        color: AppColor.surface,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        // 아직 비어 있는 항목만 테두리를 남긴다. 다 채우고 나면 테두리가 사라지면서
+        // "남은 것이 없다"는 것이 한눈에 보인다.
+        border: Border.all(color: empty ? AppColor.line : AppColor.surface),
       ),
       child: Row(
         children: [
@@ -329,14 +366,16 @@ class _ScoreRow extends StatelessWidget {
                     item.name,
                     style: const TextStyle(
                       fontSize: 15,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
+                      color: AppColor.ink,
                     ),
                   ),
                 Text(
                   '배점 ${item.maxScore}점',
                   style: const TextStyle(
                     fontSize: 12,
-                    color: Color(0xFF94A3B8),
+                    fontWeight: FontWeight.w600,
+                    color: AppColor.muted,
                   ),
                 ),
                 if (item.description?.isNotEmpty == true)
@@ -346,7 +385,8 @@ class _ScoreRow extends StatelessWidget {
                       item.description!,
                       style: const TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF94A3B8),
+                        height: 1.45,
+                        color: AppColor.muted,
                       ),
                     ),
                   ),
@@ -360,20 +400,26 @@ class _ScoreRow extends StatelessWidget {
             onPress: onDecrease,
             onRelease: onRelease,
           ),
-          GestureDetector(
-            onTap: enabled ? onTapValue : null,
-            child: Container(
-              width: 62,
-              height: 48,
-              alignment: Alignment.center,
-              child: Text(
-                value == null ? '–' : formatScore(value!),
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: value == null
-                      ? const Color(0xFFCBD5E1)
-                      : const Color(0xFF0F172A),
+          // 숫자를 누르면 직접 입력. 그냥 글씨로 두면 누를 수 있는 줄 모른다 —
+          // 눌리는 자리를 잉크 효과가 있는 단추로 만든다.
+          Semantics(
+            label: '${item.name} 점수 직접 입력',
+            button: true,
+            child: InkWell(
+              onTap: enabled ? onTapValue : null,
+              borderRadius: BorderRadius.circular(AppRadius.button),
+              child: SizedBox(
+                width: 64,
+                height: 48,
+                child: Center(
+                  child: Text(
+                    empty ? '–' : formatScore(value!),
+                    style: TextStyle(
+                      fontSize: 23,
+                      fontWeight: FontWeight.w800,
+                      color: empty ? AppColor.faint : AppColor.ink,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -414,14 +460,11 @@ class _StepButton extends StatelessWidget {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: enabled ? const Color(0xFFF1F5F9) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+          color: enabled ? AppColor.canvas : AppColor.field,
+          borderRadius: BorderRadius.circular(AppRadius.button),
+          border: Border.all(color: AppColor.line, width: 1.5),
         ),
-        child: Icon(
-          icon,
-          color: enabled ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
-        ),
+        child: Icon(icon, color: enabled ? AppColor.ink : AppColor.faint),
       ),
     );
   }
@@ -454,29 +497,40 @@ class _BottomBar extends StatelessWidget {
         10 + MediaQuery.of(context).padding.bottom,
       ),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+        color: AppColor.surface,
+        border: Border(top: BorderSide(color: AppColor.line)),
       ),
       child: Row(
         children: [
           SizedBox(
+            width: 68,
             height: 54,
             child: OutlinedButton(
               onPressed: canPrev ? onPrev : null,
-              child: const Text('← 이전'),
+              style: OutlinedButton.styleFrom(
+                padding: EdgeInsets.zero,
+                foregroundColor: AppColor.muted,
+              ),
+              child: const Icon(Icons.arrow_back, size: 20),
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: SizedBox(
               height: 54,
-              child: FilledButton(
+              child: FilledButton.icon(
                 onPressed: enabled ? onNext : null,
-                child: Text(
+                // 고친 것이 있을 때만 "저장하고" 를 붙인다. 아무것도 안 고쳤는데
+                // 저장한다고 하면, 눌러도 되는지 한 번 더 생각하게 만든다.
+                icon: Icon(
+                  dirty ? Icons.save_outlined : Icons.arrow_forward,
+                  size: 19,
+                ),
+                label: Text(
                   dirty ? lastLabel : lastLabel.replaceFirst('저장하고 ', ''),
                   style: const TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),

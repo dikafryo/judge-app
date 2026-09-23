@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/design.dart';
 import '../models/payload.dart';
 import '../store/judge_session.dart';
 import 'scoring_screen.dart';
+import 'sync_strip.dart';
 import 'signature_screen.dart';
 
 enum CandidateFilter { all, todo, done }
@@ -22,8 +26,22 @@ class _CandidatesScreenState extends ConsumerState<CandidatesScreen> {
 
   CandidateFilter _filter = CandidateFilter.all;
 
+  /// "3분 전 전송됨" 을 스스로 늙게 만드는 시계. 이것이 없으면 화면을 건드리기
+  /// 전까지 "방금 전"이 몇 시간이고 그대로 붙어 있어 오히려 사람을 속인다.
+  Timer? _clock;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _clock = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
   @override
   void dispose() {
+    _clock?.cancel();
     _search.dispose();
     super.dispose();
   }
@@ -47,31 +65,37 @@ class _CandidatesScreenState extends ConsumerState<CandidatesScreen> {
     }).toList();
   }
 
+  /// 아직 채점하지 않은 첫 대상. 100명짜리 목록에서 "내가 어디까지 했더라" 를
+  /// 눈으로 찾게 두지 않으려는 것이다.
+  CandidateInfo? _firstTodo(JudgePayload payload) {
+    for (final c in payload.candidates) {
+      if (!payload.isComplete(c.id)) return c;
+    }
+
+    return null;
+  }
+
+  void _open(int candidateId) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ScoringScreen(candidateId: candidateId)),
+    );
+  }
+
   Future<void> _confirmSignOut(JudgeState session) async {
     final pending = session.pendingCount;
 
     final ok = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('심사를 끝내고 나갈까요?'),
-        content: Text(
-          pending > 0
-              ? '아직 서버로 보내지 못한 입력이 $pending건 있습니다.\n지금 나가면 그 입력은 사라집니다.'
-              : '다시 심사하려면 접속 코드를 새로 입력해야 합니다.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('계속 심사'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              '나가기',
-              style: TextStyle(color: pending > 0 ? Colors.red : null),
-            ),
-          ),
-        ],
+      builder: (context) => AppDialog(
+        icon: Icons.logout,
+        title: '심사를 끝내고 나갈까요?',
+        subtitle: pending > 0
+            ? '아직 서버로 보내지 못한 입력이 $pending건 있습니다. 지금 나가면 그 입력은 사라집니다.'
+            : '다시 심사하려면 접속 코드를 새로 입력해야 합니다.',
+        tone: pending > 0 ? DialogTone.danger : DialogTone.neutral,
+        cancelLabel: '계속 심사',
+        confirmLabel: '나가기',
+        onConfirm: () => Navigator.pop(context, true),
       ),
     );
 
@@ -90,214 +114,254 @@ class _CandidatesScreenState extends ConsumerState<CandidatesScreen> {
     final visible = _visible(payload);
     final total = payload.candidates.length;
     final done = payload.completedCount;
+    final todo = _firstTodo(payload);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
+        titleSpacing: 16,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              payload.event.name,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-            ),
+            Text(payload.event.name, overflow: TextOverflow.ellipsis),
             Text(
               '${payload.judgeName} 심사위원',
-              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: AppColor.muted,
+              ),
             ),
           ],
         ),
         actions: [
           IconButton(
-            tooltip: '새로고침',
-            onPressed: () => ref.read(judgeSessionProvider.notifier).sync(),
-            icon: session.syncing
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.refresh),
+            tooltip: payload.hasSignature ? '서명 다시 하기' : '서명하기',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SignatureScreen()),
+            ),
+            icon: Icon(
+              payload.hasSignature ? Icons.draw : Icons.draw_outlined,
+              color: payload.hasSignature ? AppColor.accent : AppColor.muted,
+            ),
           ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'signature') {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SignatureScreen()),
-                );
-              } else {
-                _confirmSignOut(session);
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'signature',
-                child: Text(payload.hasSignature ? '서명 다시 하기' : '서명하기'),
-              ),
-              const PopupMenuItem(value: 'signout', child: Text('나가기')),
-            ],
+          IconButton(
+            tooltip: '나가기',
+            onPressed: () => _confirmSignOut(session),
+            icon: const Icon(Icons.logout, color: AppColor.muted),
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: Column(
         children: [
           if (!payload.event.isOpen)
-            const _Banner(
-              color: Color(0xFFFEF3C7),
-              text: '심사가 마감되었습니다. 점수를 더 저장할 수 없습니다.',
+            const StatusStrip(
               icon: Icons.lock_outline,
+              text: '심사가 마감되었습니다. 점수를 더 저장할 수 없습니다.',
+              foreground: AppColor.warn,
+              background: AppColor.warnSoft,
             ),
-          if (session.pendingCount > 0)
-            _Banner(
-              color: const Color(0xFFE0E7FF),
-              icon: Icons.cloud_upload_outlined,
-              text: switch (session) {
-                final s when s.offline =>
-                  '연결이 끊겨 ${s.pendingCount}건이 기기에 보관 중입니다. 연결되면 자동으로 전송됩니다.',
-                final s when s.serverError =>
-                  '서버가 ${s.pendingCount}건을 받지 못했습니다. 자동으로 다시 시도하는 중입니다.',
-                final s => '${s.pendingCount}건 전송 중입니다.',
-              },
-            ),
-          _Progress(done: done, total: total),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: TextField(
-              controller: _search,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: '이름 · 번호로 찾기',
-                prefixIcon: const Icon(Icons.search, size: 20),
-                isDense: true,
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                _chip('전체', total, CandidateFilter.all),
-                const SizedBox(width: 8),
-                _chip('미완료', total - done, CandidateFilter.todo),
-                const SizedBox(width: 8),
-                _chip('완료', done, CandidateFilter.done),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
+          SyncStrip(session: session),
           Expanded(
-            child: visible.isEmpty
-                ? const Center(
-                    child: Text(
-                      '해당하는 평가 대상이 없습니다.',
-                      style: TextStyle(color: Color(0xFF94A3B8)),
-                    ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                    itemCount: visible.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) => _CandidateTile(
-                      candidate: visible[index],
-                      payload: payload,
-                      pending: session.isPending(visible[index].id),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              ScoringScreen(candidateId: visible[index].id),
+            child: RefreshIndicator(
+              color: AppColor.accent,
+              onRefresh: () =>
+                  ref.read(judgeSessionProvider.notifier).syncNow(),
+              child: CustomScrollView(
+                // 목록이 화면을 다 채우지 못해도 당겨서 새로고침할 수 있어야 한다.
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                      child: SectionCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ProgressRow(
+                              label: '심사 진행',
+                              value: done,
+                              total: total,
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Icon(
+                                  session.isSettled
+                                      ? Icons.cloud_done_outlined
+                                      : Icons.cloud_queue,
+                                  size: 14,
+                                  color: AppColor.faint,
+                                ),
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    formatSyncedAt(session.lastSyncedAt),
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColor.muted,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  session.syncing ? '전송 중' : '당겨서 새로고침',
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    color: AppColor.faint,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
+                  if (todo != null)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                        child: _ResumeCard(
+                          candidate: todo,
+                          remaining: total - done,
+                          onTap: () => _open(todo.id),
+                        ),
+                      ),
+                    ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                      child: SearchField(
+                        controller: _search,
+                        hint: '이름 · 번호 · 소속으로 찾기',
+                        onChanged: (_) => setState(() {}),
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          _chip('전체', total, CandidateFilter.all),
+                          const SizedBox(width: 8),
+                          _chip('미완료', total - done, CandidateFilter.todo),
+                          const SizedBox(width: 8),
+                          _chip('완료', done, CandidateFilter.done),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (visible.isEmpty)
+                    const SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: EmptyState(
+                        icon: Icons.search_off,
+                        text: '해당하는 평가 대상이 없습니다',
+                        detail: '찾는 말을 지우거나 다른 묶음을 골라 보세요.',
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                      sliver: SliverList.separated(
+                        itemCount: visible.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) => _CandidateTile(
+                          candidate: visible[index],
+                          payload: payload,
+                          pending: session.isPending(visible[index].id),
+                          onTap: () => _open(visible[index].id),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _chip(String label, int count, CandidateFilter filter) => ChoiceChip(
-    label: Text('$label $count'),
-    selected: _filter == filter,
-    onSelected: (_) => setState(() => _filter = filter),
-  );
+  Widget _chip(String label, int count, CandidateFilter filter) {
+    final selected = _filter == filter;
+
+    return ChoiceChip(
+      label: Text('$label $count'),
+      selected: selected,
+      showCheckmark: false,
+      visualDensity: VisualDensity.compact,
+      backgroundColor: AppColor.surface,
+      selectedColor: AppColor.accent,
+      labelStyle: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: selected ? Colors.white : AppColor.muted,
+      ),
+      side: BorderSide(color: selected ? AppColor.accent : AppColor.line),
+      shape: const StadiumBorder(),
+      onSelected: (_) => setState(() => _filter = filter),
+    );
+  }
 }
 
-class _Progress extends StatelessWidget {
-  const _Progress({required this.done, required this.total});
+/// "이어서 채점하기" 카드. 미완료가 하나도 없으면 목록 위에 뜨지 않는다.
+class _ResumeCard extends StatelessWidget {
+  const _ResumeCard({
+    required this.candidate,
+    required this.remaining,
+    required this.onTap,
+  });
 
-  final int done;
-  final int total;
+  final CandidateInfo candidate;
+  final int remaining;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Material(
+      color: AppColor.accent,
+      borderRadius: BorderRadius.circular(AppRadius.card),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+          child: Row(
             children: [
-              const Text(
-                '심사 진행',
-                style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-              ),
-              Text(
-                '$done / $total',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF334155),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '이어서 채점하기 · $remaining명 남음',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white.withValues(alpha: 0.75),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      candidate.label,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              const Icon(Icons.arrow_forward, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
             ],
           ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: total == 0 ? 0 : done / total,
-              minHeight: 6,
-              backgroundColor: const Color(0xFFE2E8F0),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Banner extends StatelessWidget {
-  const _Banner({required this.color, required this.text, required this.icon});
-
-  final Color color;
-  final String text;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      color: color,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: const Color(0xFF334155)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 13, color: Color(0xFF334155)),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -321,34 +385,35 @@ class _CandidateTile extends StatelessWidget {
     final complete = payload.isComplete(candidate.id);
     final total = payload.totalOf(candidate.id);
     final given = payload.scoresOf(candidate.id).length;
+    final leaves = payload.leafItems.length;
 
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
+      color: AppColor.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        side: BorderSide(color: complete ? AppColor.successSoft : AppColor.line),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
           child: Row(
             children: [
               Container(
-                width: 40,
-                height: 40,
+                width: 42,
+                height: 42,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: complete
-                      ? const Color(0xFFDCFCE7)
-                      : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(10),
+                  color: complete ? AppColor.successSoft : AppColor.canvas,
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   candidate.number,
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: complete
-                        ? const Color(0xFF15803D)
-                        : const Color(0xFF64748B),
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                    color: complete ? AppColor.success : AppColor.muted,
                   ),
                 ),
               ),
@@ -366,63 +431,46 @@ class _CandidateTile extends StatelessWidget {
                                 : '${candidate.number}번',
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColor.ink,
                             ),
                           ),
                         ),
                         if (pending) ...[
                           const SizedBox(width: 6),
-                          const _Tag(text: '대기', color: Color(0xFF4F46E5)),
+                          const StatusPill(
+                            text: '전송 대기',
+                            icon: Icons.schedule,
+                            color: AppColor.accent,
+                            background: AppColor.accentSoft,
+                          ),
                         ],
                       ],
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
                       complete
                           ? '완료 · ${formatScore(total)} / ${payload.totalMax}점'
                           : given == 0
                           ? '아직 채점하지 않음'
-                          : '입력 중 · ${payload.leafItems.length}개 중 $given개',
+                          : '입력 중 · $leaves개 중 $given개',
                       style: TextStyle(
                         fontSize: 12.5,
-                        color: complete
-                            ? const Color(0xFF15803D)
-                            : const Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w600,
+                        color: complete ? AppColor.success : AppColor.muted,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: Color(0xFFCBD5E1)),
+              const Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: AppColor.faint,
+              ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Tag extends StatelessWidget {
-  const _Tag({required this.text, required this.color});
-
-  final String text;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: color,
         ),
       ),
     );

@@ -294,4 +294,79 @@ void main() {
     expect(session.state.offline, isFalse);
     expect(session.state.serverError, isTrue, reason: '"전송 중"으로 보이면 원인을 오해한다');
   });
+
+  // ── 재시도 간격과 마지막 전송 시각 ────────────────────────────────────
+  //
+  // 예전에는 연결이 없어도 5초마다 똑같이 소켓을 열었다. 심사장에서 몇 시간을
+  // 그러면 배터리만 녹는다. 실패가 이어지면 간격을 늘리고, 성공하면 되돌린다.
+
+  test('연속 실패하면 확인 주기가 늘어나고 성공하면 되돌아온다', () async {
+    final (session, server, _) = await signedIn(
+      refreshInterval: const Duration(seconds: 5),
+    );
+
+    expect(session.debugNextDelay, const Duration(seconds: 5));
+
+    server.offline = true;
+    await session.sync();
+    final afterOne = session.debugNextDelay;
+
+    await session.sync();
+    final afterTwo = session.debugNextDelay;
+
+    expect(afterOne, greaterThan(const Duration(seconds: 5)));
+    expect(afterTwo, greaterThan(afterOne), reason: '실패가 쌓이면 더 뜸해져야 한다');
+
+    server.offline = false;
+    await session.sync();
+
+    expect(
+      session.debugNextDelay,
+      const Duration(seconds: 5),
+      reason: '연결이 돌아왔는데도 1분에 한 번씩만 본다면 전송이 늦어진다',
+    );
+  });
+
+  test('주기는 아무리 늘어도 최대값을 넘지 않는다', () async {
+    final (session, server, _) = await signedIn(
+      refreshInterval: const Duration(seconds: 5),
+    );
+
+    server.offline = true;
+    for (var i = 0; i < 12; i++) {
+      await session.sync();
+    }
+
+    expect(session.debugNextDelay, const Duration(seconds: 60));
+  });
+
+  test('전송에 성공해야 마지막 전송 시각이 남는다', () async {
+    final (session, server, _) = await signedIn();
+
+    expect(session.state.lastSyncedAt, isNotNull, reason: '입장 직후 한 번 받아 온다');
+
+    final before = session.state.lastSyncedAt!;
+    server.offline = true;
+    await session.sync();
+
+    expect(
+      session.state.lastSyncedAt,
+      before,
+      reason: '실패했는데 시각이 갱신되면 오래된 화면을 최신인 줄 알게 된다',
+    );
+  });
+
+  test('직접 다시 시도하면 늘어난 주기가 곧바로 되돌아온다', () async {
+    final (session, server, _) = await signedIn();
+
+    server.offline = true;
+    await session.sync();
+    await session.sync();
+    expect(session.debugNextDelay, greaterThan(const Duration(seconds: 5)));
+
+    server.offline = false;
+    await session.syncNow();
+
+    expect(session.debugNextDelay, const Duration(seconds: 5));
+  });
 }

@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/design.dart';
 import '../store/judge_session.dart';
 
 /// 전자서명. 웹과 같은 형식(PNG dataURL)으로 보내야 최종집계표에 그대로 실린다.
@@ -14,7 +15,7 @@ import '../store/judge_session.dart';
 /// 화면 미리보기와 저장용 PNG 가 **같은 함수**로 그려져야 서명이 보이는 대로 저장된다.
 void paintStrokes(Canvas canvas, List<List<Offset>> strokes) {
   final paint = Paint()
-    ..color = const Color(0xFF0F172A)
+    ..color = AppColor.ink
     ..strokeWidth = 2.6
     ..strokeCap = StrokeCap.round
     ..strokeJoin = StrokeJoin.round
@@ -88,21 +89,22 @@ class _SignatureScreenState extends ConsumerState<SignatureScreen> {
   Widget build(BuildContext context) {
     final payload = ref.watch(judgeSessionProvider).payload;
 
+    final signed = payload?.hasSignature == true;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(title: const Text('전자서명')),
       body: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
         child: Column(
           children: [
-            Text(
-              payload?.hasSignature == true
-                  ? '이미 서명하셨습니다. 새로 서명하면 이전 서명을 대체합니다.'
-                  : '아래 칸에 서명해 주세요. 최종집계표에 그대로 실립니다.',
-              style: const TextStyle(color: Color(0xFF64748B)),
-              textAlign: TextAlign.center,
+            NoticeBox(
+              tone: signed ? NoticeTone.good : NoticeTone.info,
+              text: signed ? '이미 서명하셨습니다' : '아래 칸에 서명해 주세요',
+              detail: signed
+                  ? '새로 서명하면 이전 서명을 대체합니다.'
+                  : '서명은 최종집계표에 그대로 실립니다. 손가락이나 펜으로 그으면 됩니다.',
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -110,10 +112,11 @@ class _SignatureScreenState extends ConsumerState<SignatureScreen> {
 
                   return Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFCBD5E1)),
+                      color: AppColor.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.card),
+                      border: Border.all(color: AppColor.line, width: 1.5),
                     ),
+                    clipBehavior: Clip.antiAlias,
                     child: GestureDetector(
                       onPanStart: (details) =>
                           setState(() => _strokes.add([details.localPosition])),
@@ -129,27 +132,31 @@ class _SignatureScreenState extends ConsumerState<SignatureScreen> {
                 },
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Row(
               children: [
                 SizedBox(
-                  height: 52,
-                  child: OutlinedButton(
-                    onPressed: _saving ? null : () => setState(_strokes.clear),
-                    child: const Text('지우기'),
+                  height: 54,
+                  child: OutlinedButton.icon(
+                    onPressed: _saving || _isEmpty
+                        ? null
+                        : () => setState(_strokes.clear),
+                    icon: const Icon(Icons.backspace_outlined, size: 18),
+                    label: const Text('지우기'),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: SizedBox(
-                    height: 52,
-                    child: FilledButton(
+                    height: 54,
+                    child: FilledButton.icon(
                       onPressed: _saving || _isEmpty ? null : _save,
-                      child: const Text(
+                      icon: const Icon(Icons.check, size: 20),
+                      label: const Text(
                         '서명 저장',
                         style: TextStyle(
                           fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                     ),

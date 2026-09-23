@@ -663,3 +663,213 @@ class NoticeBox extends StatelessWidget {
     );
   }
 }
+
+/// 화면 위쪽에 붙는 얇은 띠. 마감·전송 대기처럼 **지금 상태**를 알린다.
+///
+/// [NoticeBox] 와 달리 카드 안이 아니라 화면 폭을 꽉 채운다. 목록과 채점 화면이
+/// 같은 띠를 쓰도록 여기에 둔다 — 예전에는 목록에만 있어서, 채점하는 동안에는
+/// 연결이 끊긴 줄도 모르고 계속 입력하다가 나중에야 알게 됐다.
+class StatusStrip extends StatelessWidget {
+  const StatusStrip({
+    super.key,
+    required this.icon,
+    required this.text,
+    required this.foreground,
+    required this.background,
+    this.action,
+    this.onAction,
+    this.busy = false,
+  });
+
+  final IconData icon;
+  final String text;
+  final Color foreground;
+  final Color background;
+
+  /// 오른쪽 끝 글자 버튼. 없으면 띠만 그린다.
+  final String? action;
+  final VoidCallback? onAction;
+
+  /// 참이면 아이콘 자리에 회전하는 표시를 둔다.
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: background,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 9, action == null ? 16 : 6, 9),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 17,
+              height: 17,
+              child: busy
+                  ? CircularProgressIndicator(strokeWidth: 2, color: foreground)
+                  : Icon(icon, size: 17, color: foreground),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.4,
+                  fontWeight: FontWeight.w600,
+                  color: foreground,
+                ),
+              ),
+            ),
+            if (action != null)
+              TextButton(
+                onPressed: onAction,
+                style: TextButton.styleFrom(
+                  foregroundColor: foreground,
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  textStyle: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                child: Text(action!),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 목록 위의 찾기 칸. 글자가 있으면 지우기 단추가 생긴다.
+///
+/// 칸이 비었을 때도 × 를 두면 누를 것이 없는 단추가 늘 떠 있게 된다.
+class SearchField extends StatelessWidget {
+  const SearchField({
+    super.key,
+    required this.controller,
+    required this.hint,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final String hint;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasText = controller.text.isNotEmpty;
+
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      textInputAction: TextInputAction.search,
+      style: const TextStyle(fontSize: 14.5, color: AppColor.ink),
+      decoration: InputDecoration(
+        hintText: hint,
+        filled: true,
+        fillColor: AppColor.surface,
+        prefixIcon: const Icon(Icons.search, size: 19, color: AppColor.faint),
+        prefixIconConstraints: const BoxConstraints(minWidth: 40),
+        suffixIcon: hasText
+            ? IconButton(
+                tooltip: '지우기',
+                icon: const Icon(Icons.cancel, size: 17, color: AppColor.faint),
+                onPressed: () {
+                  controller.clear();
+                  onChanged('');
+                },
+              )
+            : null,
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+      ),
+    );
+  }
+}
+
+/// 진행 막대 한 줄 — 제목·수치·막대.
+class ProgressRow extends StatelessWidget {
+  const ProgressRow({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.total,
+  });
+
+  final String label;
+  final int value;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = total == 0 ? 0.0 : value / total;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColor.muted,
+                ),
+              ),
+            ),
+            Text(
+              '$value',
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: AppColor.accent,
+              ),
+            ),
+            Text(
+              ' / $total',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColor.muted,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 7),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          // 0 일 때도 막대 자리는 남는다 — 자리가 없으면 "아직 0건"인지
+          // "막대가 그려지지 않은 것"인지 구분되지 않는다.
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: ratio),
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeOutCubic,
+            builder: (context, animated, _) => LinearProgressIndicator(
+              value: animated,
+              minHeight: 7,
+              backgroundColor: AppColor.line,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// "방금 전" · "3분 전" 처럼 마지막 전송 시각을 사람 말로 바꾼다.
+/// 한 시간이 넘으면 시:분 을 그대로 보여 준다 — "97분 전"은 세어 봐야 안다.
+String formatSyncedAt(DateTime? at, {DateTime? now}) {
+  if (at == null) return '아직 전송 전';
+
+  final elapsed = (now ?? DateTime.now()).difference(at);
+
+  if (elapsed.inSeconds < 45) return '방금 전 전송됨';
+  if (elapsed.inMinutes < 60) return '${elapsed.inMinutes}분 전 전송됨';
+
+  final hour = at.hour.toString().padLeft(2, '0');
+  final minute = at.minute.toString().padLeft(2, '0');
+
+  return '$hour:$minute 전송됨';
+}
