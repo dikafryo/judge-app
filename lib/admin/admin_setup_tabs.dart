@@ -41,9 +41,10 @@ class AdminCriteriaTab extends StatelessWidget {
                   text: '평가 항목이 없습니다.',
                   detail: '1레벨 항목부터 만들어 주세요.',
                 ),
-              for (final parent in top)
+              for (final (index, parent) in top.indexed)
                 _CriterionCard(
                   parent: parent,
+                  tone: AppToneColors.at(index),
                   children: data.childrenOf(parent.id),
                   onAddChild: () => _add(context, data, mutate, parent),
                   onDelete: (criterion) async {
@@ -195,83 +196,145 @@ class _CriterionDialogState extends State<_CriterionDialog> {
 class _CriterionCard extends StatelessWidget {
   const _CriterionCard({
     required this.parent,
+    required this.tone,
     required this.children,
     required this.onAddChild,
     required this.onDelete,
   });
 
   final SetupCriterion parent;
+  final AppTone tone;
   final List<SetupCriterion> children;
   final VoidCallback onAddChild;
   final Future<void> Function(SetupCriterion) onDelete;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-      decoration: BoxDecoration(
-        color: AppColor.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        border: Border.all(color: AppColor.line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '${parent.name}  ${parent.maxScore}점',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              IconButton(
-                tooltip: '2레벨 추가',
-                icon: const Icon(Icons.add, size: 20),
-                onPressed: onAddChild,
-              ),
-              IconButton(
-                tooltip: '삭제',
-                icon: const Icon(
-                  Icons.delete_outline,
-                  size: 20,
-                  color: AppColor.faint,
-                ),
-                onPressed: () => onDelete(parent),
-              ),
-            ],
-          ),
-          if (parent.hasScores)
-            const Padding(
-              padding: EdgeInsets.only(right: 8, bottom: 4),
-              child: Text(
-                '이미 점수가 입력된 항목입니다 — 2레벨을 추가할 수 없습니다.',
-                style: TextStyle(fontSize: 12, color: AppColor.warn),
-              ),
-            ),
-          for (final child in children)
-            Padding(
-              padding: const EdgeInsets.only(left: 12, right: 8),
+    final childSum = children.fold(0, (sum, c) => sum + c.maxScore);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: CardBox(
+        padding: EdgeInsets.zero,
+        accent: tone.strong,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              color: tone.soft.withValues(alpha: 0.6),
+              padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
               child: Row(
                 children: [
-                  const Text('└ ', style: TextStyle(color: AppColor.line)),
-                  Expanded(child: Text('${child.name}  ${child.maxScore}점')),
+                  IconBadge(
+                    icon: Icons.category_outlined,
+                    tone: tone,
+                    size: 34,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          parent.name,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: tone.ink,
+                          ),
+                        ),
+                        Text(
+                          children.isEmpty
+                              ? '배점 ${parent.maxScore}점'
+                              : '배점 ${parent.maxScore}점 · 하위 $childSum점 배정',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: tone.ink.withValues(alpha: 0.75),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   IconButton(
+                    tooltip: '2레벨 추가',
+                    icon: Icon(Icons.add_circle_outline, color: tone.strong),
+                    onPressed: onAddChild,
+                  ),
+                  IconButton(
+                    tooltip: '삭제',
                     icon: const Icon(
                       Icons.delete_outline,
-                      size: 18,
-                      color: AppColor.line,
+                      size: 20,
+                      color: AppColor.faint,
                     ),
-                    onPressed: () => onDelete(child),
+                    onPressed: () => onDelete(parent),
                   ),
                 ],
               ),
             ),
-        ],
+            if (parent.hasScores)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(14, 10, 14, 0),
+                child: Text(
+                  '이미 점수가 입력된 항목입니다 — 2레벨을 추가할 수 없습니다.',
+                  style: TextStyle(fontSize: 12, color: AppColor.warn),
+                ),
+              ),
+            if (children.isEmpty)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(14, 10, 14, 12),
+                child: Text(
+                  '하위 항목 없이 이 항목에 바로 채점합니다.',
+                  style: TextStyle(fontSize: 12.5, color: AppColor.muted),
+                ),
+              ),
+            for (final (index, child) in children.indexed) ...[
+              if (index > 0) const Divider(indent: 14, endIndent: 14),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: tone.strong,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        child.name,
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColor.ink,
+                        ),
+                      ),
+                    ),
+                    StatusPill(
+                      text: '${child.maxScore}점',
+                      color: tone.ink,
+                      background: tone.soft,
+                    ),
+                    IconButton(
+                      tooltip: '삭제',
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        size: 18,
+                        color: AppColor.faint,
+                      ),
+                      onPressed: () => onDelete(child),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 4),
+          ],
+        ),
       ),
     );
   }
@@ -311,12 +374,13 @@ class AdminCandidatesTab extends StatelessWidget {
             : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                 itemCount: data.candidates.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 6),
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final candidate = data.candidates[index];
 
                   return _Row(
                     leading: '${index + 1}',
+                    tone: AppToneColors.at(index),
                     title: candidate.name,
                     subtitle: candidate.affiliation,
                     onDelete: () async {
@@ -368,13 +432,14 @@ class AdminJudgesTab extends StatelessWidget {
             : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                 itemCount: data.judges.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 6),
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final judge = data.judges[index];
 
                   return _Row(
                     leading: judge.code ?? '–',
                     leadingWide: true,
+                    tone: AppToneColors.at(index),
                     title: judge.name,
                     subtitle: judge.code == null
                         ? '마감되어 코드가 회수되었습니다'
@@ -409,6 +474,7 @@ class _Row extends StatelessWidget {
     required this.leading,
     required this.title,
     required this.onDelete,
+    required this.tone,
     this.subtitle,
     this.onCopy,
     this.leadingWide = false,
@@ -419,21 +485,26 @@ class _Row extends StatelessWidget {
   final String? subtitle;
   final VoidCallback onDelete;
   final VoidCallback? onCopy;
+  final AppTone tone;
+
+  /// 참이면 앞자리가 6자리 접속 코드다. 번호보다 넓고 글자 사이가 벌어진다.
   final bool leadingWide;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
-      decoration: BoxDecoration(
-        color: AppColor.surface,
-        borderRadius: BorderRadius.circular(AppRadius.field),
-        border: Border.all(color: AppColor.line),
-      ),
+    return CardBox(
+      padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
       child: Row(
         children: [
-          SizedBox(
-            width: leadingWide ? 92 : 30,
+          Container(
+            constraints: BoxConstraints(minWidth: leadingWide ? 96 : 40),
+            height: 40,
+            padding: EdgeInsets.symmetric(horizontal: leadingWide ? 10 : 0),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: tone.soft,
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Text(
               leading,
               // 6자리 접속 코드가 두 줄로 접히면 읽어 주기 어렵다. 한 줄로 고정한다.
@@ -441,22 +512,32 @@ class _Row extends StatelessWidget {
               softWrap: false,
               overflow: TextOverflow.visible,
               style: TextStyle(
-                fontSize: leadingWide ? 15 : 13,
-                fontWeight: FontWeight.bold,
-                letterSpacing: leadingWide ? 1 : 0,
-                color: AppColor.muted,
+                fontSize: leadingWide ? 15 : 14,
+                fontWeight: FontWeight.w800,
+                letterSpacing: leadingWide ? 1.5 : 0,
+                color: tone.ink,
               ),
             ),
           ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 15)),
+                Text(
+                  title,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColor.ink,
+                  ),
+                ),
                 if (subtitle != null)
                   Text(
                     subtitle!,
-                    style: const TextStyle(fontSize: 12, color: AppColor.faint),
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: AppColor.muted),
                   ),
               ],
             ),
@@ -464,14 +545,15 @@ class _Row extends StatelessWidget {
           if (onCopy != null)
             IconButton(
               tooltip: '코드 복사',
-              icon: const Icon(Icons.copy, size: 18, color: AppColor.faint),
+              icon: Icon(Icons.copy, size: 18, color: tone.strong),
               onPressed: onCopy,
             ),
           IconButton(
+            tooltip: '삭제',
             icon: const Icon(
               Icons.delete_outline,
               size: 20,
-              color: AppColor.line,
+              color: AppColor.faint,
             ),
             onPressed: onDelete,
           ),

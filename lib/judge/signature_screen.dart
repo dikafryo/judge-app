@@ -93,78 +93,82 @@ class _SignatureScreenState extends ConsumerState<SignatureScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('전자서명')),
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-        child: Column(
-          children: [
-            NoticeBox(
-              tone: signed ? NoticeTone.good : NoticeTone.info,
-              text: signed ? '이미 서명하셨습니다' : '아래 칸에 서명해 주세요',
-              detail: signed
-                  ? '새로 서명하면 이전 서명을 대체합니다.'
-                  : '서명은 최종집계표에 그대로 실립니다. 손가락이나 펜으로 그으면 됩니다.',
-            ),
-            const SizedBox(height: 14),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  _canvas = Size(constraints.maxWidth, constraints.maxHeight);
-
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: AppColor.surface,
-                      borderRadius: BorderRadius.circular(AppRadius.card),
-                      border: Border.all(color: AppColor.line, width: 1.5),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: GestureDetector(
-                      onPanStart: (details) =>
-                          setState(() => _strokes.add([details.localPosition])),
-                      onPanUpdate: (details) => setState(
-                        () => _strokes.last.add(details.localPosition),
-                      ),
-                      child: CustomPaint(
-                        painter: _SignaturePainter(_strokes),
-                        size: Size.infinite,
-                      ),
-                    ),
-                  );
-                },
+      body: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: Column(
+            children: [
+              NoticeBox(
+                tone: signed ? NoticeTone.good : NoticeTone.info,
+                text: signed ? '이미 서명하셨습니다' : '아래 칸에 서명해 주세요',
+                detail: signed
+                    ? '새로 서명하면 이전 서명을 대체합니다.'
+                    : '서명은 최종집계표에 그대로 실립니다. 손가락이나 펜으로 그으면 됩니다.',
               ),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                SizedBox(
-                  height: 54,
-                  child: OutlinedButton.icon(
-                    onPressed: _saving || _isEmpty
-                        ? null
-                        : () => setState(_strokes.clear),
-                    icon: const Icon(Icons.backspace_outlined, size: 18),
-                    label: const Text('지우기'),
-                  ),
+              const SizedBox(height: 14),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    _canvas = Size(constraints.maxWidth, constraints.maxHeight);
+
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: AppColor.surface,
+                        borderRadius: BorderRadius.circular(AppRadius.card),
+                        boxShadow: AppShadow.card,
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: GestureDetector(
+                        onPanStart: (details) => setState(
+                          () => _strokes.add([details.localPosition]),
+                        ),
+                        onPanUpdate: (details) => setState(
+                          () => _strokes.last.add(details.localPosition),
+                        ),
+                        child: CustomPaint(
+                          painter: _SignaturePainter(_strokes),
+                          size: Size.infinite,
+                        ),
+                      ),
+                    );
+                  },
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: SizedBox(
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  SizedBox(
                     height: 54,
-                    child: FilledButton.icon(
-                      onPressed: _saving || _isEmpty ? null : _save,
-                      icon: const Icon(Icons.check, size: 20),
-                      label: const Text(
-                        '서명 저장',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
+                    child: OutlinedButton.icon(
+                      onPressed: _saving || _isEmpty
+                          ? null
+                          : () => setState(_strokes.clear),
+                      icon: const Icon(Icons.backspace_outlined, size: 18),
+                      label: const Text('지우기'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SizedBox(
+                      height: 54,
+                      child: FilledButton.icon(
+                        onPressed: _saving || _isEmpty ? null : _save,
+                        icon: const Icon(Icons.check, size: 20),
+                        label: const Text(
+                          '서명 저장',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

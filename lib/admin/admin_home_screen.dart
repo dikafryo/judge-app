@@ -56,16 +56,25 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
           children: [
             Text(
               admin.event.name,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
             ),
-            Text(
-              admin.event.isOpen ? '심사 진행 중' : '심사 마감',
-              style: TextStyle(
-                fontSize: 12,
-                color: admin.event.isOpen
-                    ? AppColor.success
-                    : AppColor.warn,
-              ),
+            const SizedBox(height: 3),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: admin.event.isOpen
+                  ? const StatusPill(
+                      text: '심사 진행 중',
+                      icon: Icons.play_arrow_rounded,
+                      color: AppColor.success,
+                      background: AppColor.successSoft,
+                    )
+                  : const StatusPill(
+                      text: '심사 마감',
+                      icon: Icons.lock_outline,
+                      color: AppColor.warn,
+                      background: AppColor.warnSoft,
+                    ),
             ),
           ],
         ),
@@ -75,9 +84,38 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
             tooltip: '출력',
             onSelected: (kind) => _openPrint(admin, kind),
             itemBuilder: (context) => const [
-              PopupMenuItem(value: 'report', child: Text('최종집계표 (A4)')),
-              PopupMenuItem(value: 'csv', child: Text('결과 CSV')),
-              PopupMenuItem(value: 'judge-cards', child: Text('심사위원 접속 카드')),
+              PopupMenuItem(
+                value: 'report',
+                child: ListTile(
+                  leading: IconBadge(
+                    icon: Icons.description_outlined,
+                    size: 32,
+                  ),
+                  title: Text('최종집계표 (A4)'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'csv',
+                child: ListTile(
+                  leading: IconBadge(
+                    icon: Icons.table_chart_outlined,
+                    tone: AppTone.teal,
+                    size: 32,
+                  ),
+                  title: Text('결과 CSV'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'judge-cards',
+                child: ListTile(
+                  leading: IconBadge(
+                    icon: Icons.qr_code_2,
+                    tone: AppTone.violet,
+                    size: 32,
+                  ),
+                  title: Text('심사위원 접속 카드'),
+                ),
+              ),
             ],
           ),
           IconButton(

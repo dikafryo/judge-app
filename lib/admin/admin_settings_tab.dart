@@ -240,6 +240,11 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
                 children: [
                   SwitchListTile(
                     value: event.isBlind,
+                    secondary: const IconBadge(
+                      icon: Icons.visibility_off_outlined,
+                      tone: AppTone.rose,
+                      size: 38,
+                    ),
                     title: const Text('블라인드 심사'),
                     subtitle: const Text(
                       '켜면 심사위원에게 이름·소속을 아예 보내지 않고 심사번호만 보여 줍니다.',
@@ -259,6 +264,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
                   const Divider(indent: 16, endIndent: 16),
                   _SettingRow(
                     icon: Icons.speed_outlined,
+                    tone: AppTone.sky,
                     title: '심사 기본점수',
                     value: event.defaultScorePercent == null
                         ? '채우지 않음'
@@ -269,6 +275,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
                   const Divider(indent: 16, endIndent: 16),
                   _SettingRow(
                     icon: Icons.emoji_events_outlined,
+                    tone: AppTone.amber,
                     title: '선정자 수',
                     value: event.passCount == null
                         ? '지정하지 않음'
@@ -285,6 +292,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: _SettingRow(
                 icon: Icons.draw_outlined,
+                tone: AppTone.violet,
                 title: event.showJudgeSigns ? '심사위원 서명란 포함' : '심사위원 서명란 생략',
                 value: event.reportSigners.isEmpty
                     ? '결재란 없음'
@@ -333,6 +341,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
             // 위험 구역은 시각적으로 떨어뜨려 둔다 — 스크롤하다 눈에 걸려 누르면 안 된다
             SectionCard(
               title: '위험 구역',
+              color: AppColor.dangerSoft.withValues(alpha: 0.45),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -387,6 +396,7 @@ class _SettingRow extends StatelessWidget {
     required this.value,
     required this.onTap,
     this.highlight = false,
+    this.tone = AppTone.indigo,
   });
 
   final IconData icon;
@@ -394,11 +404,12 @@ class _SettingRow extends StatelessWidget {
   final String value;
   final VoidCallback? onTap;
   final bool highlight;
+  final AppTone tone;
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Icon(icon, size: 21),
+      leading: IconBadge(icon: icon, tone: tone, size: 38),
       title: Text(title),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 2),

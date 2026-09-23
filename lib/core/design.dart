@@ -47,6 +47,105 @@ class AppRadius {
   static const pill = 999.0;
 }
 
+/// 카드가 바탕에서 살짝 떠 보이게 하는 그림자. 테두리 선 대신 쓴다 —
+/// 선으로 구분한 흰 카드는 표처럼 보이고, 그림자로 띄운 카드는 물건처럼 보인다.
+class AppShadow {
+  const AppShadow._();
+
+  static const card = [
+    BoxShadow(color: Color(0x0F0F172A), blurRadius: 18, offset: Offset(0, 6)),
+    BoxShadow(color: Color(0x080F172A), blurRadius: 2, offset: Offset(0, 1)),
+  ];
+
+  /// 색 있는 카드(강조 카드·머리 판)는 제 색의 그림자를 드리운다.
+  static List<BoxShadow> tinted(Color color) => [
+    BoxShadow(
+      color: color.withValues(alpha: 0.28),
+      blurRadius: 22,
+      offset: const Offset(0, 8),
+    ),
+  ];
+}
+
+/// 화면 머리 판·강조 카드의 그라데이션. indigo → violet 한 가지만 쓴다.
+class AppGradient {
+  const AppGradient._();
+
+  static const hero = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF4F46E5), Color(0xFF7C3AED)],
+  );
+
+  static const success = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF059669), Color(0xFF0D9488)],
+  );
+}
+
+/// 색조. 통계 타일·평가 항목 묶음·행사 아바타처럼 **여럿을 구분**해야 하는 자리에
+/// 번갈아 쓴다. 뜻이 정해진 색(성공·경고·위험)은 [AppColor] 에 있다.
+enum AppTone { indigo, violet, sky, teal, amber, rose }
+
+extension AppToneColors on AppTone {
+  /// 진한 색 — 아이콘·숫자·막대.
+  Color get strong => switch (this) {
+    AppTone.indigo => const Color(0xFF4F46E5),
+    AppTone.violet => const Color(0xFF7C3AED),
+    AppTone.sky => const Color(0xFF0284C7),
+    AppTone.teal => const Color(0xFF0D9488),
+    AppTone.amber => const Color(0xFFD97706),
+    AppTone.rose => const Color(0xFFE11D48),
+  };
+
+  /// 연한 바탕 — 타일·배지 배경.
+  Color get soft => switch (this) {
+    AppTone.indigo => const Color(0xFFEEF2FF),
+    AppTone.violet => const Color(0xFFF5F3FF),
+    AppTone.sky => const Color(0xFFE0F2FE),
+    AppTone.teal => const Color(0xFFCCFBF1),
+    AppTone.amber => const Color(0xFFFEF3C7),
+    AppTone.rose => const Color(0xFFFFE4E6),
+  };
+
+  /// 연한 바탕 위에 얹는 글씨. [strong] 보다 한 단계 어두워 4.5:1 이 나온다.
+  Color get ink => switch (this) {
+    AppTone.indigo => const Color(0xFF3730A3),
+    AppTone.violet => const Color(0xFF5B21B6),
+    AppTone.sky => const Color(0xFF075985),
+    AppTone.teal => const Color(0xFF115E59),
+    AppTone.amber => const Color(0xFF92400E),
+    AppTone.rose => const Color(0xFF9F1239),
+  };
+
+  /// n 번째 것에 줄 색조. 목록이 여섯을 넘으면 처음부터 다시 돈다.
+  static AppTone at(int index) => AppTone.values[index % AppTone.values.length];
+}
+
+/// 시스템 바(상태바·내비게이션바)는 늘 투명하다. Android 15 부터 앱이 그 뒤까지
+/// 그리므로(edge-to-edge) 색을 칠하면 오히려 띠가 생긴다. 아이콘 색만 배경에 맞춘다.
+const kLightSystemBars = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  statusBarIconBrightness: Brightness.dark,
+  statusBarBrightness: Brightness.light,
+  systemNavigationBarColor: Colors.transparent,
+  systemNavigationBarDividerColor: Colors.transparent,
+  systemNavigationBarIconBrightness: Brightness.dark,
+  systemNavigationBarContrastEnforced: false,
+);
+
+/// 그라데이션 머리 판 위처럼 배경이 어두운 화면용.
+const kDarkSystemBars = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  statusBarIconBrightness: Brightness.light,
+  statusBarBrightness: Brightness.dark,
+  systemNavigationBarColor: Colors.transparent,
+  systemNavigationBarDividerColor: Colors.transparent,
+  systemNavigationBarIconBrightness: Brightness.dark,
+  systemNavigationBarContrastEnforced: false,
+);
+
 ThemeData buildAppTheme() {
   final scheme =
       ColorScheme.fromSeed(
@@ -81,11 +180,7 @@ ThemeData buildAppTheme() {
         fontWeight: FontWeight.w700,
       ),
       // 밝은 앱바 위의 상태바 아이콘은 어두워야 읽힌다
-      systemOverlayStyle: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light,
-      ),
+      systemOverlayStyle: kLightSystemBars,
     ),
 
     textTheme: const TextTheme(
@@ -441,12 +536,14 @@ class SectionCard extends StatelessWidget {
     this.title,
     this.padding = const EdgeInsets.all(16),
     this.margin = EdgeInsets.zero,
+    this.color = AppColor.surface,
   });
 
   final Widget child;
   final String? title;
   final EdgeInsets padding;
   final EdgeInsets margin;
+  final Color color;
 
   static const sectionTitleStyle = TextStyle(
     fontSize: 12,
@@ -469,16 +566,19 @@ class SectionCard extends StatelessWidget {
             ),
           // Material 로 바탕을 칠한다. Container 로 칠하면 안에 놓인 ListTile 의
           // 잉크 효과가 그 뒤로 숨어 눌러도 반응이 없는 것처럼 보인다.
-          Material(
-            color: AppColor.surface,
-            shape: RoundedRectangleBorder(
+          DecoratedBox(
+            decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppRadius.card),
-              side: const BorderSide(color: AppColor.line),
+              boxShadow: AppShadow.card,
             ),
-            clipBehavior: Clip.antiAlias,
-            child: Padding(
-              padding: padding,
-              child: SizedBox(width: double.infinity, child: child),
+            child: Material(
+              color: color,
+              borderRadius: BorderRadius.circular(AppRadius.card),
+              clipBehavior: Clip.antiAlias,
+              child: Padding(
+                padding: padding,
+                child: SizedBox(width: double.infinity, child: child),
+              ),
             ),
           ),
         ],
@@ -854,6 +954,346 @@ class ProgressRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 그림자로 띄운 흰 카드. 누를 수 있으면 [onTap] 을 준다.
+///
+/// [SectionCard] 가 "머리글 달린 구역" 이라면 이것은 목록의 한 줄 같은 **낱개** 다.
+/// [accent] 를 주면 왼쪽에 색 띠가 생긴다 — 묶음을 색으로 구분할 때 쓴다.
+class CardBox extends StatelessWidget {
+  const CardBox({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.padding = const EdgeInsets.all(16),
+    this.color = AppColor.surface,
+    this.accent,
+    this.outline,
+    this.radius = AppRadius.card,
+  });
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final EdgeInsets padding;
+  final Color color;
+  final Color? accent;
+
+  /// 강조 테두리. 선정·동점처럼 한 줄만 눈에 띄어야 할 때.
+  final Color? outline;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget body = Padding(padding: padding, child: child);
+
+    if (accent != null) {
+      // 목록 안에서는 높이가 정해져 있지 않으므로, 색 띠가 내용 높이만큼만 늘어나게
+      // IntrinsicHeight 로 감싼다.
+      body = IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 5, color: accent),
+            Expanded(child: body),
+          ],
+        ),
+      );
+    }
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        boxShadow: AppShadow.card,
+      ),
+      child: Material(
+        color: color,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radius),
+          side: outline == null
+              ? BorderSide.none
+              : BorderSide(color: outline!, width: 1.6),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: onTap == null ? body : InkWell(onTap: onTap, child: body),
+      ),
+    );
+  }
+}
+
+/// 그라데이션 머리 판. 화면 맨 위에서 행사명·진행률처럼 **지금 어디에 있는지**를 알린다.
+class HeroPanel extends StatelessWidget {
+  const HeroPanel({
+    super.key,
+    required this.child,
+    this.gradient = AppGradient.hero,
+    this.padding = const EdgeInsets.all(20),
+    this.radius = const BorderRadius.all(Radius.circular(24)),
+  });
+
+  final Widget child;
+  final Gradient gradient;
+  final EdgeInsets padding;
+  final BorderRadius radius;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: gradient,
+        borderRadius: radius,
+        boxShadow: AppShadow.tinted(gradient.colors.first),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          // 밋밋한 그라데이션 위에 큰 원 두 개를 흐리게 얹어 깊이를 준다.
+          Positioned(
+            right: -40,
+            top: -50,
+            child: _Bubble(size: 160, alpha: 0.10),
+          ),
+          Positioned(
+            right: 60,
+            bottom: -70,
+            child: _Bubble(size: 140, alpha: 0.07),
+          ),
+          Padding(padding: padding, child: child),
+        ],
+      ),
+    );
+  }
+}
+
+class _Bubble extends StatelessWidget {
+  const _Bubble({required this.size, required this.alpha});
+
+  final double size;
+  final double alpha;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white.withValues(alpha: alpha),
+      ),
+    );
+  }
+}
+
+/// 색 바탕에 아이콘 하나. 목록 줄 앞, 설정 줄 앞에 둔다.
+class IconBadge extends StatelessWidget {
+  const IconBadge({
+    super.key,
+    required this.icon,
+    this.tone = AppTone.indigo,
+    this.size = 40,
+    this.filled = false,
+  });
+
+  final IconData icon;
+  final AppTone tone;
+  final double size;
+
+  /// 참이면 진한 색 바탕에 흰 아이콘.
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: filled ? tone.strong : tone.soft,
+        borderRadius: BorderRadius.circular(size * 0.3),
+      ),
+      child: Icon(
+        icon,
+        size: size * 0.5,
+        color: filled ? Colors.white : tone.strong,
+      ),
+    );
+  }
+}
+
+/// 색 있는 통계 타일 — 큰 숫자 하나와 그 뜻.
+///
+/// [onTap] 을 주면 누를 수 있고 [selected] 로 고른 표시(진한 테두리)를 낸다.
+/// 목록의 "전체·미완료·완료" 처럼 통계가 곧 필터인 자리에 쓴다.
+class StatTile extends StatelessWidget {
+  const StatTile({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.tone,
+    this.icon,
+    this.onTap,
+    this.selected = false,
+    this.suffix,
+  });
+
+  final String label;
+  final String value;
+  final AppTone tone;
+  final IconData? icon;
+  final VoidCallback? onTap;
+  final bool selected;
+
+  /// 숫자 뒤에 작게 붙는 단위. "/ 12" 나 "점" 같은 것.
+  final String? suffix;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: onTap != null,
+      selected: onTap == null ? null : selected,
+      label: '$label $value${suffix ?? ''}',
+      child: Material(
+        color: tone.soft,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          side: BorderSide(
+            color: selected ? tone.strong : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 18, color: tone.strong),
+                  const SizedBox(height: 8),
+                ],
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 24,
+                          height: 1.1,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                          color: tone.ink,
+                        ),
+                      ),
+                    ),
+                    if (suffix != null)
+                      Text(
+                        suffix!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: tone.ink.withValues(alpha: 0.7),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: tone.ink.withValues(alpha: 0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 순위 배지. 1·2·3 위는 금·은·동, 나머지는 회색 숫자.
+class RankBadge extends StatelessWidget {
+  const RankBadge({super.key, required this.rank, this.size = 40});
+
+  final int? rank;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final (bg, fg, medal) = switch (rank) {
+      1 => (const Color(0xFFF59E0B), Colors.white, true),
+      2 => (const Color(0xFF94A3B8), Colors.white, true),
+      3 => (const Color(0xFFD97706), Colors.white, true),
+      _ => (AppColor.canvas, AppColor.muted, false),
+    };
+
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(size * 0.3),
+        boxShadow: medal ? AppShadow.tinted(bg) : null,
+      ),
+      child: Text(
+        rank?.toString() ?? '–',
+        style: TextStyle(
+          fontSize: size * 0.42,
+          fontWeight: FontWeight.w800,
+          color: fg,
+        ),
+      ),
+    );
+  }
+}
+
+/// 이름 첫 글자를 색 바탕에 얹은 아바타. 사진이 없는 목록에서 줄을 구분해 준다.
+class LetterAvatar extends StatelessWidget {
+  const LetterAvatar({
+    super.key,
+    required this.text,
+    required this.tone,
+    this.size = 44,
+  });
+
+  final String text;
+  final AppTone tone;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final letter = text.trim().isEmpty
+        ? '?'
+        : String.fromCharCode(text.trim().runes.first);
+
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: tone.soft,
+        borderRadius: BorderRadius.circular(size * 0.3),
+      ),
+      child: Text(
+        letter,
+        style: TextStyle(
+          fontSize: size * 0.42,
+          fontWeight: FontWeight.w800,
+          color: tone.ink,
+        ),
+      ),
     );
   }
 }

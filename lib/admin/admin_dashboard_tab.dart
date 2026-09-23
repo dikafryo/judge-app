@@ -73,41 +73,126 @@ class _AdminDashboardTabState extends ConsumerState<AdminDashboardTab> {
           : ErrorView(message: _error!, onRetry: () => unawaited(_load()));
     }
 
+    final judgesDone = data.judges
+        .where((j) => j.total > 0 && j.done >= j.total)
+        .length;
+    final scored = data.rows.where((r) => r.avg != null).length;
+    final top = data.rows.isEmpty ? null : data.rows.first;
+
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
         children: [
-          if (_error != null)
-            _Notice(
-              color: AppColor.dangerSoft,
-              icon: Icons.cloud_off,
-              text: '최신이 아닙니다 — $_error',
+          if (_error != null) ...[
+            NoticeBox(
+              tone: NoticeTone.warn,
+              text: '최신 집계가 아닙니다',
+              detail: _error,
             ),
-          if (data.passTie != null)
-            const _Notice(
-              color: AppColor.warnSoft,
-              icon: Icons.warning_amber_outlined,
-              text: '선정 경계에 동점이 있습니다. 발표 전에 동점을 해소해야 합니다.',
+            const SizedBox(height: 12),
+          ],
+          if (data.passTie != null) ...[
+            const NoticeBox(
+              tone: NoticeTone.warn,
+              text: '선정 경계에 동점이 있습니다',
+              detail: '발표 전에 동점을 해소해야 합니다.',
             ),
+            const SizedBox(height: 12),
+          ],
+          // 한눈에 볼 숫자 네 개. 발표 직전에 사회자가 보는 것은 이 줄이다.
+          Row(
+            children: [
+              Expanded(
+                child: StatTile(
+                  label: '심사 완료',
+                  value: '$judgesDone',
+                  suffix: ' / ${data.judges.length}명',
+                  tone: AppTone.indigo,
+                  icon: Icons.badge_outlined,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: StatTile(
+                  label: '채점된 대상',
+                  value: '$scored',
+                  suffix: ' / ${data.rows.length}',
+                  tone: AppTone.sky,
+                  icon: Icons.groups_outlined,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: StatTile(
+                  label: '선정 인원',
+                  value: data.passCount?.toString() ?? '–',
+                  suffix: data.passCount == null ? null : '곳',
+                  tone: AppTone.amber,
+                  icon: Icons.emoji_events_outlined,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: StatTile(
+                  label: '현재 1위',
+                  value: top?.avg == null ? '–' : formatScore(top!.avg!),
+                  suffix: top?.avg == null ? null : ' / ${data.totalMax}점',
+                  tone: AppTone.teal,
+                  icon: Icons.leaderboard_outlined,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _JudgeProgressCard(judges: data.judges),
+          const SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text('순위', style: SectionCard.sectionTitleStyle),
+                ),
+                Text(
+                  data.scoringMethodLabel,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColor.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (data.rows.isEmpty)
+            const EmptyState(
+              icon: Icons.leaderboard_outlined,
+              text: '아직 순위가 없습니다',
+              detail: '심사위원이 점수를 넣으면 여기에 순위가 나타납니다.',
+            ),
+          for (final row in data.rows)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _RankTile(row: row, totalMax: data.totalMax),
+            ),
+          const SizedBox(height: 6),
           Text(
             data.scoringNote,
-            style: const TextStyle(fontSize: 12.5, color: AppColor.muted),
-          ),
-          const SizedBox(height: 12),
-          _JudgeProgressCard(judges: data.judges),
-          const SizedBox(height: 16),
-          const Text(
-            '순위',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontSize: 11.5,
+              color: AppColor.muted,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 8),
-          for (final row in data.rows)
-            _RankTile(row: row, totalMax: data.totalMax),
-          const SizedBox(height: 12),
           Center(
             child: Text(
-              '${data.generatedAt} 기준',
+              '${data.generatedAt} 기준 · 5초마다 갱신',
               style: const TextStyle(fontSize: 11.5, color: AppColor.muted),
             ),
           ),
@@ -117,36 +202,10 @@ class _AdminDashboardTabState extends ConsumerState<AdminDashboardTab> {
   }
 }
 
-class _Notice extends StatelessWidget {
-  const _Notice({required this.color, required this.icon, required this.text});
-
-  final Color color;
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: AppColor.ink),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 13, color: AppColor.ink),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+extension on Dashboard {
+  /// 집계 방식을 순위 머리에 짧게 적는다. 긴 설명([scoringNote])은 맨 아래에 있다.
+  String get scoringMethodLabel =>
+      scoringNote.contains('제외') ? '최고·최저 제외' : '전체 평균';
 }
 
 class _JudgeProgressCard extends StatelessWidget {
@@ -156,58 +215,95 @@ class _JudgeProgressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColor.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-      ),
+    return SectionCard(
+      title: '심사위원 진행',
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '심사위원 진행',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 10),
-          for (final judge in judges)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      judge.name,
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ),
-                  if (judge.signed)
-                    const Padding(
-                      padding: EdgeInsets.only(right: 8),
-                      child: Icon(
-                        Icons.draw_outlined,
-                        size: 16,
-                        color: AppColor.success,
-                      ),
-                    ),
-                  Text(
-                    '${judge.done} / ${judge.total}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: judge.done >= judge.total && judge.total > 0
-                          ? AppColor.success
-                          : AppColor.muted,
-                    ),
-                  ),
-                ],
+          if (judges.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text(
+                '등록된 심사위원이 없습니다.',
+                style: TextStyle(color: AppColor.muted),
               ),
             ),
-          if (judges.isEmpty)
-            const Text(
-              '등록된 심사위원이 없습니다.',
-              style: TextStyle(color: AppColor.muted),
+          for (final (index, judge) in judges.indexed)
+            _JudgeRow(judge: judge, tone: AppToneColors.at(index)),
+        ],
+      ),
+    );
+  }
+}
+
+class _JudgeRow extends StatelessWidget {
+  const _JudgeRow({required this.judge, required this.tone});
+
+  final JudgeProgress judge;
+  final AppTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final complete = judge.total > 0 && judge.done >= judge.total;
+    final ratio = judge.total == 0 ? 0.0 : judge.done / judge.total;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          LetterAvatar(text: judge.name, tone: tone, size: 38),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        judge.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColor.ink,
+                        ),
+                      ),
+                    ),
+                    if (judge.signed)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 8),
+                        child: StatusPill(
+                          text: '서명',
+                          icon: Icons.draw_outlined,
+                          color: AppColor.success,
+                          background: AppColor.successSoft,
+                        ),
+                      ),
+                    Text(
+                      '${judge.done} / ${judge.total}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: complete ? AppColor.success : AppColor.muted,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  child: LinearProgressIndicator(
+                    value: ratio,
+                    minHeight: 6,
+                    color: complete ? AppColor.success : tone.strong,
+                    backgroundColor: AppColor.canvas,
+                  ),
+                ),
+              ],
             ),
+          ),
         ],
       ),
     );
@@ -224,68 +320,95 @@ class _RankTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final selected = row.pass == 'pass';
     final tie = row.pass == 'tie';
+    final ratio = row.avg == null || totalMax == 0 ? 0.0 : row.avg! / totalMax;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColor.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        border: tie
-            ? Border.all(color: const Color(0xFFF59E0B), width: 1.5)
-            : selected
-            ? Border.all(color: AppColor.accent, width: 1.5)
-            : null,
-      ),
+    return CardBox(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      color: tie
+          ? AppColor.warnSoft
+          : selected
+          ? AppColor.accentSoft
+          : AppColor.surface,
+      outline: tie ? AppTone.amber.strong : null,
       child: Row(
         children: [
-          SizedBox(
-            width: 34,
-            child: Text(
-              row.rank?.toString() ?? '–',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-            ),
-          ),
+          RankBadge(rank: row.rank),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   row.name?.isNotEmpty == true ? row.name! : '${row.number}번',
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 15,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
+                    color: AppColor.ink,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   '${row.affiliation ?? ''}${row.affiliation != null ? ' · ' : ''}'
                   '심사 ${row.judgedCount}명 완료',
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 12, color: AppColor.muted),
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  child: LinearProgressIndicator(
+                    value: ratio,
+                    minHeight: 5,
+                    color: tie
+                        ? AppTone.amber.strong
+                        : selected
+                        ? AppColor.accent
+                        : AppColor.faint,
+                    backgroundColor: Colors.white.withValues(alpha: 0.7),
+                  ),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                row.avg == null ? '–' : '${formatScore(row.avg!)}점',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColor.accent,
+                row.avg == null ? '–' : formatScore(row.avg!),
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.4,
+                  color: tie
+                      ? AppTone.amber.ink
+                      : selected
+                      ? AppColor.accent
+                      : AppColor.ink,
                 ),
               ),
               if (tie)
-                const Text(
-                  '동점',
-                  style: TextStyle(fontSize: 11, color: AppColor.warn),
+                const StatusPill(
+                  text: '동점',
+                  color: AppColor.warn,
+                  background: Colors.white,
                 )
               else if (selected)
-                const Text(
-                  '선정',
-                  style: TextStyle(fontSize: 11, color: AppColor.accent),
+                const StatusPill(
+                  text: '선정',
+                  icon: Icons.check,
+                  color: AppColor.accent,
+                  background: Colors.white,
+                )
+              else
+                Text(
+                  '/ $totalMax점',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColor.muted,
+                  ),
                 ),
             ],
           ),

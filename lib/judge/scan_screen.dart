@@ -52,12 +52,15 @@ class _ScanScreenState extends State<ScanScreen> {
           MobileScanner(onDetect: _onDetect),
           const Align(
             alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: EdgeInsets.all(32),
-              child: Text(
-                '심사위원 카드의 QR 코드를 화면 안에 맞춰 주세요.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white, fontSize: 15),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: Text(
+                  '심사위원 카드의 QR 코드를 화면 안에 맞춰 주세요.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white, fontSize: 15),
+                ),
               ),
             ),
           ),

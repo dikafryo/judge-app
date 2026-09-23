@@ -93,3 +93,8 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // MainActivity 의 enableEdgeToEdge() — Android 15 edge-to-edge 대응.
+    implementation("androidx.activity:activity-ktx:1.9.0")
+}

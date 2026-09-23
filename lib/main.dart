@@ -13,7 +13,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -29,6 +29,12 @@ import 'store/local_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Android 15 부터는 앱이 시스템 바 뒤까지 그린다(edge-to-edge). 그 아래 버전에서도
+  // 같은 모양이 나오게 명시하고, 바를 투명하게 둔다. 각 화면은 SafeArea·앱바·하단 바로
+  // 인셋을 비켜 그린다.
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(kLightSystemBars);
 
   final store = await LocalStore.open();
 
@@ -162,9 +168,16 @@ class _RootState extends ConsumerState<_Root> with WidgetsBindingObserver {
     // 채점 중에 뜨면 못 보고 넘기기 일쑤였다.
     if (update == null) return screen;
 
+    // 띠가 내비게이션바 자리를 차지하므로, 위 화면은 그 인셋을 다시 비워 두지 않는다.
     return Column(
       children: [
-        Expanded(child: screen),
+        Expanded(
+          child: MediaQuery.removePadding(
+            context: context,
+            removeBottom: true,
+            child: screen,
+          ),
+        ),
         _UpdateBanner(
           update: update,
           onDismiss: () => setState(() => _update = null),

@@ -15,7 +15,8 @@
 ```
 lib/
   core/      config(서버 주소 고정) · api(Bearer 토큰 클라이언트) · brand(아이콘 마크)
-             design(색·모서리·테마 + 공용 위젯 — 화면에서 색을 직접 적지 않는다)
+             design(색·색조(AppTone)·그림자·그라데이션·테마 + 공용 위젯: CardBox·HeroPanel·
+             StatTile·IconBadge·RankBadge·LetterAvatar — 화면에서 색을 직접 적지 않는다)
   models/    payload — /api/v1/judge/me 응답 = 오프라인 동작의 전부
   store/     local_store(기기 저장) · judge_session(상태·전송 대기열) · queued_op
   judge/     entry · scan(QR) · candidates · scoring · signature · sync_strip(연결 상태 띠)
@@ -63,6 +64,19 @@ flutter analyze
 flutter test
 flutter build apk --debug   # 릴리스 키 없이 컴파일만 확인
 ```
+
+## Android 15 edge-to-edge
+
+SDK 35 를 타겟팅하면 Android 15 부터 앱이 상태바·내비게이션바 뒤까지 그린다.
+`MainActivity` 가 `enableEdgeToEdge()` 를 부르고(그래서 `FlutterFragmentActivity` 다 —
+`FlutterActivity` 는 `ComponentActivity` 가 아니라 부를 수 없다), Dart 쪽은
+`main()` 에서 `SystemUiMode.edgeToEdge` 와 투명 시스템 바를 명시한다.
+화면은 `SafeArea`·앱바·하단 바로 인셋을 비켜 그리고, 그라데이션 머리 판을 쓰는 화면은
+`MediaQuery.paddingOf(context).top` 만큼 안쪽 여백을 직접 준다. 새 화면을 만들 때도 같은 규칙.
+
+## 플레이 검토자 로그인 (앱 액세스 권한)
+
+`store/LISTING.md` 의 "앱 액세스 권한" 절. 값은 `~/.config/judge-app/play-review-access.txt`.
 
 ## 아이폰(iOS) 앱
 

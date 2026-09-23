@@ -196,8 +196,9 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
           children: [
             Text(candidate.label, overflow: TextOverflow.ellipsis),
             Text(
-              '${_index + 1} / ${payload.candidates.length}'
-              '${candidate.affiliation?.isNotEmpty == true ? ' · ${candidate.affiliation}' : ''}',
+              candidate.affiliation?.isNotEmpty == true
+                  ? candidate.affiliation!
+                  : '평가 대상 ${candidate.number}번',
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 11.5,
@@ -208,7 +209,7 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
           ],
         ),
         actions: [
-          // 합계는 채점 내내 눈이 가는 숫자다. 알약 안에 넣어 제목과 섞이지 않게 한다.
+          // 몇 번째 대상인지는 스크롤해도 늘 보여야 한다. 합계는 본문 맨 위 카드에 있다.
           Container(
             margin: const EdgeInsets.only(right: 12),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -216,28 +217,13 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
               color: AppColor.accentSoft,
               borderRadius: BorderRadius.circular(AppRadius.pill),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(
-                  formatScore(_total),
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: AppColor.accent,
-                  ),
-                ),
-                Text(
-                  ' / ${payload.totalMax}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColor.accent,
-                  ),
-                ),
-              ],
+            child: Text(
+              '${_index + 1} / ${payload.candidates.length}',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: AppColor.accent,
+              ),
             ),
           ),
         ],
@@ -259,48 +245,37 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
               controller: _scroll,
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
               children: [
-                SectionCard(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                  child: ProgressRow(
-                    label: '입력한 항목',
-                    value: _filled,
-                    total: leaves,
-                  ),
+                _TotalCard(
+                  candidate: candidate,
+                  total: _total,
+                  totalMax: payload.totalMax,
+                  filled: _filled,
+                  leaves: leaves,
                 ),
-                for (final group in payload.groups) ...[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            group.name,
-                            style: SectionCard.sectionTitleStyle,
-                          ),
-                        ),
-                        Text(
-                          '${group.maxScore}점',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColor.muted,
-                          ),
-                        ),
-                      ],
+                const SizedBox(height: 14),
+                for (final (index, group) in payload.groups.indexed) ...[
+                  _GroupCard(
+                    group: group,
+                    tone: AppToneColors.at(index),
+                    subtotal: group.items.fold<double>(
+                      0,
+                      (sum, item) => sum + (_draft[item.id] ?? 0),
                     ),
+                    children: [
+                      for (final item in group.items)
+                        _ScoreRow(
+                          item: item,
+                          value: _draft[item.id],
+                          enabled: !locked,
+                          showName: group.hasChildren,
+                          tone: AppToneColors.at(index),
+                          onDecrease: () => _holdStart(item, -1),
+                          onIncrease: () => _holdStart(item, 1),
+                          onRelease: _holdStop,
+                          onTapValue: () => _promptValue(item),
+                        ),
+                    ],
                   ),
-                  for (final item in group.items)
-                    _ScoreRow(
-                      item: item,
-                      value: _draft[item.id],
-                      enabled: !locked,
-                      showName: group.hasChildren,
-                      onDecrease: () => _holdStart(item, -1),
-                      onIncrease: () => _holdStart(item, 1),
-                      onRelease: _holdStop,
-                      onTapValue: () => _promptValue(item),
-                    ),
                   const SizedBox(height: 12),
                 ],
               ],
@@ -320,12 +295,205 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
   }
 }
 
+/// 합계 카드. 채점 내내 눈이 가는 숫자라 그라데이션 판에 크게 둔다.
+class _TotalCard extends StatelessWidget {
+  const _TotalCard({
+    required this.candidate,
+    required this.total,
+    required this.totalMax,
+    required this.filled,
+    required this.leaves,
+  });
+
+  final CandidateInfo candidate;
+  final double total;
+  final int totalMax;
+  final int filled;
+  final int leaves;
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = leaves == 0 ? 0.0 : filled / leaves;
+    final complete = leaves > 0 && filled >= leaves;
+
+    return HeroPanel(
+      gradient: complete ? AppGradient.success : AppGradient.hero,
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '합계',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          formatScore(total),
+                          style: const TextStyle(
+                            fontSize: 38,
+                            height: 1.1,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -1,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          ' / $totalMax점',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white.withValues(alpha: 0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      complete ? Icons.task_alt : Icons.edit_note_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '입력한 항목',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white.withValues(alpha: 0.85),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$filled / $leaves',
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: ratio),
+              duration: const Duration(milliseconds: 420),
+              curve: Curves.easeOutCubic,
+              builder: (context, animated, _) => LinearProgressIndicator(
+                value: animated,
+                minHeight: 7,
+                color: Colors.white,
+                backgroundColor: Colors.white.withValues(alpha: 0.25),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 평가 항목 한 묶음(1레벨). 색 띠와 아이콘으로 묶음을 구분하고,
+/// 머리에 묶음 소계를 둔다 — "이 묶음에서 몇 점을 줬는지" 를 더해 보지 않아도 된다.
+class _GroupCard extends StatelessWidget {
+  const _GroupCard({
+    required this.group,
+    required this.tone,
+    required this.subtotal,
+    required this.children,
+  });
+
+  final CriterionGroup group;
+  final AppTone tone;
+  final double subtotal;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return CardBox(
+      padding: EdgeInsets.zero,
+      accent: tone.strong,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            color: tone.soft.withValues(alpha: 0.6),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            child: Row(
+              children: [
+                IconBadge(icon: Icons.category_outlined, tone: tone, size: 32),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    group.name,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: tone.ink,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${formatScore(subtotal)} / ${group.maxScore}점',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: tone.ink,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          for (final (index, child) in children.indexed) ...[
+            if (index > 0) const Divider(indent: 16, endIndent: 16),
+            child,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _ScoreRow extends StatelessWidget {
   const _ScoreRow({
     required this.item,
     required this.value,
     required this.enabled,
     required this.showName,
+    required this.tone,
     required this.onDecrease,
     required this.onIncrease,
     required this.onRelease,
@@ -336,6 +504,7 @@ class _ScoreRow extends StatelessWidget {
   final double? value;
   final bool enabled;
   final bool showName;
+  final AppTone tone;
   final VoidCallback onDecrease;
   final VoidCallback onIncrease;
   final VoidCallback onRelease;
@@ -345,16 +514,8 @@ class _ScoreRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final empty = value == null;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+    return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-      decoration: BoxDecoration(
-        color: AppColor.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        // 아직 비어 있는 항목만 테두리를 남긴다. 다 채우고 나면 테두리가 사라지면서
-        // "남은 것이 없다"는 것이 한눈에 보인다.
-        border: Border.all(color: empty ? AppColor.line : AppColor.surface),
-      ),
       child: Row(
         children: [
           Expanded(
@@ -405,19 +566,27 @@ class _ScoreRow extends StatelessWidget {
           Semantics(
             label: '${item.name} 점수 직접 입력',
             button: true,
-            child: InkWell(
-              onTap: enabled ? onTapValue : null,
-              borderRadius: BorderRadius.circular(AppRadius.button),
-              child: SizedBox(
-                width: 64,
-                height: 48,
-                child: Center(
-                  child: Text(
-                    empty ? '–' : formatScore(value!),
-                    style: TextStyle(
-                      fontSize: 23,
-                      fontWeight: FontWeight.w800,
-                      color: empty ? AppColor.faint : AppColor.ink,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Material(
+                // 비어 있으면 회색, 넣었으면 묶음 색. 남은 칸이 색으로 드러난다.
+                color: empty ? AppColor.canvas : tone.soft,
+                borderRadius: BorderRadius.circular(AppRadius.button),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: enabled ? onTapValue : null,
+                  child: SizedBox(
+                    width: 64,
+                    height: 48,
+                    child: Center(
+                      child: Text(
+                        empty ? '–' : formatScore(value!),
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: empty ? AppColor.faint : tone.ink,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -460,7 +629,7 @@ class _StepButton extends StatelessWidget {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: enabled ? AppColor.canvas : AppColor.field,
+          color: enabled ? AppColor.surface : AppColor.field,
           borderRadius: BorderRadius.circular(AppRadius.button),
           border: Border.all(color: AppColor.line, width: 1.5),
         ),

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/design.dart';
@@ -14,6 +15,9 @@ enum CandidateFilter { all, todo, done }
 
 /// 첫 화면이자 허브. 웹에서는 목록이 채점 화면 위에 쌓여 100명이면 한참 스크롤해야 했는데,
 /// 네이티브에서는 목록과 채점이 아예 다른 화면이라 그 문제가 생기지 않는다.
+///
+/// 맨 위 그라데이션 판이 행사명·심사위원·진행률을, 그 아래 색 타일 세 장이
+/// 전체·미완료·완료 수를 보여 주면서 동시에 목록의 필터 노릇을 한다.
 class CandidatesScreen extends ConsumerStatefulWidget {
   const CandidatesScreen({super.key});
 
@@ -77,7 +81,9 @@ class _CandidatesScreenState extends ConsumerState<CandidatesScreen> {
 
   void _open(int candidateId) {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ScoringScreen(candidateId: candidateId)),
+      MaterialPageRoute(
+        builder: (_) => ScoringScreen(candidateId: candidateId),
+      ),
     );
   }
 
@@ -115,195 +121,361 @@ class _CandidatesScreenState extends ConsumerState<CandidatesScreen> {
     final total = payload.candidates.length;
     final done = payload.completedCount;
     final todo = _firstTodo(payload);
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 16,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: kDarkSystemBars,
+      child: Scaffold(
+        body: Column(
           children: [
-            Text(payload.event.name, overflow: TextOverflow.ellipsis),
-            Text(
-              '${payload.judgeName} 심사위원',
-              style: const TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: AppColor.muted,
+            _Header(
+              payload: payload,
+              session: session,
+              done: done,
+              total: total,
+              onSign: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SignatureScreen()),
               ),
+              onSignOut: () => _confirmSignOut(session),
             ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: payload.hasSignature ? '서명 다시 하기' : '서명하기',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SignatureScreen()),
-            ),
-            icon: Icon(
-              payload.hasSignature ? Icons.draw : Icons.draw_outlined,
-              color: payload.hasSignature ? AppColor.accent : AppColor.muted,
-            ),
-          ),
-          IconButton(
-            tooltip: '나가기',
-            onPressed: () => _confirmSignOut(session),
-            icon: const Icon(Icons.logout, color: AppColor.muted),
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: Column(
-        children: [
-          if (!payload.event.isOpen)
-            const StatusStrip(
-              icon: Icons.lock_outline,
-              text: '심사가 마감되었습니다. 점수를 더 저장할 수 없습니다.',
-              foreground: AppColor.warn,
-              background: AppColor.warnSoft,
-            ),
-          SyncStrip(session: session),
-          Expanded(
-            child: RefreshIndicator(
-              color: AppColor.accent,
-              onRefresh: () =>
-                  ref.read(judgeSessionProvider.notifier).syncNow(),
-              child: CustomScrollView(
-                // 목록이 화면을 다 채우지 못해도 당겨서 새로고침할 수 있어야 한다.
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-                      child: SectionCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+            if (!payload.event.isOpen)
+              const StatusStrip(
+                icon: Icons.lock_outline,
+                text: '심사가 마감되었습니다. 점수를 더 저장할 수 없습니다.',
+                foreground: AppColor.warn,
+                background: AppColor.warnSoft,
+              ),
+            SyncStrip(session: session),
+            Expanded(
+              child: RefreshIndicator(
+                color: AppColor.accent,
+                onRefresh: () =>
+                    ref.read(judgeSessionProvider.notifier).syncNow(),
+                child: CustomScrollView(
+                  // 목록이 화면을 다 채우지 못해도 당겨서 새로고침할 수 있어야 한다.
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                        child: Row(
                           children: [
-                            ProgressRow(
-                              label: '심사 진행',
-                              value: done,
-                              total: total,
+                            Expanded(
+                              child: _filterTile(
+                                '전체',
+                                total,
+                                CandidateFilter.all,
+                                AppTone.indigo,
+                                Icons.groups_outlined,
+                              ),
                             ),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                Icon(
-                                  session.isSettled
-                                      ? Icons.cloud_done_outlined
-                                      : Icons.cloud_queue,
-                                  size: 14,
-                                  color: AppColor.faint,
-                                ),
-                                const SizedBox(width: 5),
-                                Expanded(
-                                  child: Text(
-                                    formatSyncedAt(session.lastSyncedAt),
-                                    style: const TextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColor.muted,
-                                    ),
-                                  ),
-                                ),
-                                Text(
-                                  session.syncing ? '전송 중' : '당겨서 새로고침',
-                                  style: const TextStyle(
-                                    fontSize: 11.5,
-                                    color: AppColor.faint,
-                                  ),
-                                ),
-                              ],
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _filterTile(
+                                '미완료',
+                                total - done,
+                                CandidateFilter.todo,
+                                AppTone.amber,
+                                Icons.pending_actions_outlined,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _filterTile(
+                                '완료',
+                                done,
+                                CandidateFilter.done,
+                                AppTone.teal,
+                                Icons.task_alt_outlined,
+                              ),
                             ),
                           ],
                         ),
                       ),
                     ),
-                  ),
-                  if (todo != null)
+                    if (todo != null)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                          child: _ResumeCard(
+                            candidate: todo,
+                            remaining: total - done,
+                            onTap: () => _open(todo.id),
+                          ),
+                        ),
+                      ),
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                        child: _ResumeCard(
-                          candidate: todo,
-                          remaining: total - done,
-                          onTap: () => _open(todo.id),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                        child: SearchField(
+                          controller: _search,
+                          hint: '이름 · 번호 · 소속으로 찾기',
+                          onChanged: (_) => setState(() {}),
                         ),
                       ),
                     ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-                      child: SearchField(
-                        controller: _search,
-                        hint: '이름 · 번호 · 소속으로 찾기',
-                        onChanged: (_) => setState(() {}),
-                      ),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        children: [
-                          _chip('전체', total, CandidateFilter.all),
-                          const SizedBox(width: 8),
-                          _chip('미완료', total - done, CandidateFilter.todo),
-                          const SizedBox(width: 8),
-                          _chip('완료', done, CandidateFilter.done),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (visible.isEmpty)
-                    const SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: EmptyState(
-                        icon: Icons.search_off,
-                        text: '해당하는 평가 대상이 없습니다',
-                        detail: '찾는 말을 지우거나 다른 묶음을 골라 보세요.',
-                      ),
-                    )
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-                      sliver: SliverList.separated(
-                        itemCount: visible.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 8),
-                        itemBuilder: (context, index) => _CandidateTile(
-                          candidate: visible[index],
-                          payload: payload,
-                          pending: session.isPending(visible[index].id),
-                          onTap: () => _open(visible[index].id),
+                    if (visible.isEmpty)
+                      const SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: EmptyState(
+                          icon: Icons.search_off,
+                          text: '해당하는 평가 대상이 없습니다',
+                          detail: '찾는 말을 지우거나 다른 묶음을 골라 보세요.',
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: EdgeInsets.fromLTRB(
+                          16,
+                          10,
+                          16,
+                          24 + bottomInset,
+                        ),
+                        sliver: SliverList.separated(
+                          itemCount: visible.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, index) => _CandidateTile(
+                            candidate: visible[index],
+                            payload: payload,
+                            pending: session.isPending(visible[index].id),
+                            onTap: () => _open(visible[index].id),
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _filterTile(
+    String label,
+    int count,
+    CandidateFilter filter,
+    AppTone tone,
+    IconData icon,
+  ) {
+    return StatTile(
+      label: label,
+      value: '$count',
+      tone: tone,
+      icon: icon,
+      selected: _filter == filter,
+      onTap: () => setState(() => _filter = filter),
+    );
+  }
+}
+
+/// 그라데이션 머리 판 — 행사명·심사위원·진행률·마지막 전송 시각.
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.payload,
+    required this.session,
+    required this.done,
+    required this.total,
+    required this.onSign,
+    required this.onSignOut,
+  });
+
+  final JudgePayload payload;
+  final JudgeState session;
+  final int done;
+  final int total;
+  final VoidCallback onSign;
+  final VoidCallback onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    final topInset = MediaQuery.paddingOf(context).top;
+    final ratio = total == 0 ? 0.0 : done / total;
+
+    return HeroPanel(
+      radius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+      padding: EdgeInsets.fromLTRB(20, topInset + 10, 12, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        payload.event.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          height: 1.3,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${payload.judgeName} 심사위원',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              _HeaderAction(
+                tooltip: payload.hasSignature ? '서명 다시 하기' : '서명하기',
+                icon: payload.hasSignature ? Icons.draw : Icons.draw_outlined,
+                highlighted: payload.hasSignature,
+                onTap: onSign,
+              ),
+              _HeaderAction(
+                tooltip: '나가기',
+                icon: Icons.logout,
+                onTap: onSignOut,
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(AppRadius.card),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '심사 진행',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '$done',
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    Text(
+                      ' / $total',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: ratio),
+                    duration: const Duration(milliseconds: 420),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, animated, _) => LinearProgressIndicator(
+                      value: animated,
+                      minHeight: 8,
+                      color: Colors.white,
+                      backgroundColor: Colors.white.withValues(alpha: 0.25),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Icon(
+                      session.isSettled
+                          ? Icons.cloud_done_outlined
+                          : Icons.cloud_queue,
+                      size: 14,
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        formatSyncedAt(session.lastSyncedAt),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      session.syncing ? '전송 중' : '당겨서 새로고침',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: Colors.white.withValues(alpha: 0.65),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _chip(String label, int count, CandidateFilter filter) {
-    final selected = _filter == filter;
+/// 머리 판 오른쪽 위의 둥근 흰 단추.
+class _HeaderAction extends StatelessWidget {
+  const _HeaderAction({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+    this.highlighted = false,
+  });
 
-    return ChoiceChip(
-      label: Text('$label $count'),
-      selected: selected,
-      showCheckmark: false,
-      visualDensity: VisualDensity.compact,
-      backgroundColor: AppColor.surface,
-      selectedColor: AppColor.accent,
-      labelStyle: TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        color: selected ? Colors.white : AppColor.muted,
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: Material(
+        color: Colors.white.withValues(alpha: highlighted ? 0.9 : 0.16),
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: IconButton(
+          tooltip: tooltip,
+          onPressed: onTap,
+          icon: Icon(
+            icon,
+            size: 21,
+            color: highlighted ? AppColor.accent : Colors.white,
+          ),
+        ),
       ),
-      side: BorderSide(color: selected ? AppColor.accent : AppColor.line),
-      shape: const StadiumBorder(),
-      onSelected: (_) => setState(() => _filter = filter),
     );
   }
 }
@@ -322,46 +494,50 @@ class _ResumeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColor.accent,
-      borderRadius: BorderRadius.circular(AppRadius.card),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '이어서 채점하기 · $remaining명 남음',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white.withValues(alpha: 0.75),
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      candidate.label,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.arrow_forward, color: Colors.white, size: 20),
-              const SizedBox(width: 8),
-            ],
+    return CardBox(
+      color: AppColor.ink,
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+      child: Row(
+        children: [
+          const IconBadge(
+            icon: Icons.play_arrow_rounded,
+            tone: AppTone.indigo,
+            filled: true,
+            size: 44,
           ),
-        ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '이어서 채점하기 · $remaining명 남음',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white.withValues(alpha: 0.7),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  candidate.label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.arrow_forward_rounded,
+            color: Colors.white.withValues(alpha: 0.8),
+            size: 22,
+          ),
+        ],
       ),
     );
   }
@@ -386,91 +562,127 @@ class _CandidateTile extends StatelessWidget {
     final total = payload.totalOf(candidate.id);
     final given = payload.scoresOf(candidate.id).length;
     final leaves = payload.leafItems.length;
+    final started = !complete && given > 0;
 
-    return Material(
-      color: AppColor.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        side: BorderSide(color: complete ? AppColor.successSoft : AppColor.line),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: complete ? AppColor.successSoft : AppColor.canvas,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  candidate.number,
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w800,
-                    color: complete ? AppColor.success : AppColor.muted,
-                  ),
-                ),
+    // 상태마다 색을 정한다: 완료=청록, 입력 중=호박, 아직=회색.
+    final (badgeBg, badgeFg) = complete
+        ? (AppTone.teal.soft, AppTone.teal.ink)
+        : started
+        ? (AppTone.amber.soft, AppTone.amber.ink)
+        : (AppColor.canvas, AppColor.muted);
+
+    return CardBox(
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: badgeBg,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              candidate.number,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: badgeFg,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            candidate.name?.isNotEmpty == true
-                                ? candidate.name!
-                                : '${candidate.number}번',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.w700,
-                              color: AppColor.ink,
-                            ),
-                          ),
+                    Flexible(
+                      child: Text(
+                        candidate.name?.isNotEmpty == true
+                            ? candidate.name!
+                            : '${candidate.number}번',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColor.ink,
                         ),
-                        if (pending) ...[
-                          const SizedBox(width: 6),
-                          const StatusPill(
-                            text: '전송 대기',
-                            icon: Icons.schedule,
-                            color: AppColor.accent,
-                            background: AppColor.accentSoft,
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      complete
-                          ? '완료 · ${formatScore(total)} / ${payload.totalMax}점'
-                          : given == 0
-                          ? '아직 채점하지 않음'
-                          : '입력 중 · $leaves개 중 $given개',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: complete ? AppColor.success : AppColor.muted,
                       ),
                     ),
+                    if (pending) ...[
+                      const SizedBox(width: 6),
+                      const StatusPill(
+                        text: '전송 대기',
+                        icon: Icons.schedule,
+                        color: AppColor.accent,
+                        background: AppColor.accentSoft,
+                      ),
+                    ],
                   ],
                 ),
-              ),
-              const Icon(
-                Icons.chevron_right,
-                size: 20,
-                color: AppColor.faint,
-              ),
-            ],
+                const SizedBox(height: 4),
+                if (candidate.affiliation?.isNotEmpty == true)
+                  Text(
+                    candidate.affiliation!,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: AppColor.muted,
+                    ),
+                  ),
+                if (started) ...[
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                    child: LinearProgressIndicator(
+                      value: leaves == 0 ? 0 : given / leaves,
+                      minHeight: 5,
+                      color: AppTone.amber.strong,
+                      backgroundColor: AppTone.amber.soft,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
+          const SizedBox(width: 10),
+          if (complete)
+            _ScoreChip(text: '${formatScore(total)}점', tone: AppTone.teal)
+          else if (started)
+            _ScoreChip(text: '$given / $leaves', tone: AppTone.amber)
+          else
+            const Icon(Icons.chevron_right, size: 22, color: AppColor.faint),
+        ],
+      ),
+    );
+  }
+}
+
+/// 줄 오른쪽 끝의 점수·진행 표시.
+class _ScoreChip extends StatelessWidget {
+  const _ScoreChip({required this.text, required this.tone});
+
+  final String text;
+  final AppTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: tone.soft,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 13.5,
+          fontWeight: FontWeight.w800,
+          color: tone.ink,
         ),
       ),
     );

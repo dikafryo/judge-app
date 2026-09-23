@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api.dart';
@@ -116,192 +117,289 @@ class _AdminEventsScreenState extends ConsumerState<AdminEventsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 20,
-        title: const Text('행사 관리'),
-        bottom: const _AppBarHairline(),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _create,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('새 행사'),
-      ),
-      body: FutureBuilder<List<EventSummary>>(
-        future: _events,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    final topInset = MediaQuery.paddingOf(context).top;
 
-          if (snapshot.hasError) {
-            return ErrorView(
-              message: snapshot.error is ApiException
-                  ? (snapshot.error as ApiException).message
-                  : '행사 목록을 불러오지 못했습니다.',
-              onRetry: () => setState(_load),
-            );
-          }
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: kDarkSystemBars,
+      child: Scaffold(
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _create,
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('새 행사'),
+        ),
+        body: FutureBuilder<List<EventSummary>>(
+          future: _events,
+          builder: (context, snapshot) {
+            final events = snapshot.data ?? const <EventSummary>[];
+            final open = events.where((e) => e.isOpen).length;
 
-          final events = snapshot.data ?? const <EventSummary>[];
-
-          if (events.isEmpty) {
-            return const EmptyState(
-              icon: Icons.event_note_outlined,
-              text: '아직 만들어진 행사가 없습니다.',
-              detail: "아래 '새 행사' 를 눌러 첫 행사를 만드세요.",
-            );
-          }
-
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-            itemCount: events.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 10),
-            itemBuilder: (context, index) => _EventTile(
-              event: events[index],
-              onTap: () => _signIn(events[index]),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// 앱바와 내용 사이의 실선. 흰 앱바가 흰 카드 위에 떠 있으면 경계가 사라진다.
-class _AppBarHairline extends StatelessWidget implements PreferredSizeWidget {
-  const _AppBarHairline();
-
-  @override
-  Size get preferredSize => const Size.fromHeight(1);
-
-  @override
-  Widget build(BuildContext context) => const Divider(height: 1);
-}
-
-class _EventTile extends StatelessWidget {
-  const _EventTile({required this.event, required this.onTap});
-
-  final EventSummary event;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColor.surface,
-      borderRadius: BorderRadius.circular(AppRadius.card),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.card),
-            border: Border.all(color: AppColor.line),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 15, 12, 15),
-            child: Row(
+            return Column(
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                HeroPanel(
+                  radius: const BorderRadius.vertical(
+                    bottom: Radius.circular(28),
+                  ),
+                  padding: EdgeInsets.fromLTRB(8, topInset + 4, 20, 22),
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              event.name,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: AppColor.ink,
-                                height: 1.3,
+                      IconButton(
+                        tooltip: '뒤로',
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '행사 관리',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: -0.3,
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          if (event.isOpen)
-                            const StatusPill(
-                              text: '진행 중',
-                              icon: Icons.play_arrow_rounded,
-                              color: AppColor.success,
-                              background: AppColor.successSoft,
-                            )
-                          else
-                            const StatusPill(
-                              text: '마감',
-                              icon: Icons.lock_outline,
-                              color: AppColor.warn,
-                              background: AppColor.warnSoft,
+                            const SizedBox(height: 3),
+                            Text(
+                              snapshot.hasData
+                                  ? '행사 ${events.length}개 · 진행 중 $open개'
+                                  : '행사를 골라 관리 비밀번호로 들어갑니다',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white.withValues(alpha: 0.8),
+                              ),
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          _Stat(
-                            icon: Icons.groups_outlined,
-                            value: event.candidates,
-                            label: '대상',
-                          ),
-                          _Stat(
-                            icon: Icons.checklist_outlined,
-                            value: event.criteria,
-                            label: '항목',
-                          ),
-                          _Stat(
-                            icon: Icons.badge_outlined,
-                            value: event.judges,
-                            label: '심사위원',
-                          ),
-                        ],
-                      ),
-                      if (event.date != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          event.date!,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColor.muted,
-                          ),
+                          ],
                         ),
-                      ],
+                      ),
+                      const IconBadge(
+                        icon: Icons.admin_panel_settings_outlined,
+                        tone: AppTone.indigo,
+                        filled: true,
+                        size: 44,
+                      ),
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right, color: AppColor.faint),
+                Expanded(child: _body(snapshot, events)),
               ],
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
   }
+
+  Widget _body(
+    AsyncSnapshot<List<EventSummary>> snapshot,
+    List<EventSummary> events,
+  ) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (snapshot.hasError) {
+      return ErrorView(
+        message: snapshot.error is ApiException
+            ? (snapshot.error as ApiException).message
+            : '행사 목록을 불러오지 못했습니다.',
+        onRetry: () => setState(_load),
+      );
+    }
+
+    if (events.isEmpty) {
+      return const EmptyState(
+        icon: Icons.event_note_outlined,
+        text: '아직 만들어진 행사가 없습니다.',
+        detail: "아래 '새 행사' 를 눌러 첫 행사를 만드세요.",
+      );
+    }
+
+    return ListView.separated(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        100 + MediaQuery.paddingOf(context).bottom,
+      ),
+      itemCount: events.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemBuilder: (context, index) => _EventTile(
+        event: events[index],
+        tone: AppToneColors.at(index),
+        onTap: () => _signIn(events[index]),
+      ),
+    );
+  }
 }
 
-/// 대상 12 · 항목 3 처럼 한 줄로 늘어놓던 것을 아이콘과 함께 끊어 읽게 한다.
+class _EventTile extends StatelessWidget {
+  const _EventTile({
+    required this.event,
+    required this.tone,
+    required this.onTap,
+  });
+
+  final EventSummary event;
+  final AppTone tone;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return CardBox(
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LetterAvatar(text: event.name, tone: tone, size: 46),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      event.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: AppColor.ink,
+                        height: 1.3,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        if (event.isOpen)
+                          const StatusPill(
+                            text: '진행 중',
+                            icon: Icons.play_arrow_rounded,
+                            color: AppColor.success,
+                            background: AppColor.successSoft,
+                          )
+                        else
+                          const StatusPill(
+                            text: '마감',
+                            icon: Icons.lock_outline,
+                            color: AppColor.warn,
+                            background: AppColor.warnSoft,
+                          ),
+                        if (event.date != null) ...[
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              event.date!,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColor.muted,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: Icon(Icons.chevron_right, color: AppColor.faint),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _Stat(
+                icon: Icons.groups_outlined,
+                value: event.candidates,
+                label: '대상',
+                tone: AppTone.sky,
+              ),
+              const SizedBox(width: 8),
+              _Stat(
+                icon: Icons.checklist_outlined,
+                value: event.criteria,
+                label: '항목',
+                tone: AppTone.violet,
+              ),
+              const SizedBox(width: 8),
+              _Stat(
+                icon: Icons.badge_outlined,
+                value: event.judges,
+                label: '심사위원',
+                tone: AppTone.teal,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 대상 12 · 항목 3 처럼 한 줄로 늘어놓던 것을 색 상자 세 개로 나눈다.
 class _Stat extends StatelessWidget {
-  const _Stat({required this.icon, required this.value, required this.label});
+  const _Stat({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.tone,
+  });
 
   final IconData icon;
   final int value;
   final String label;
+  final AppTone tone;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 16),
-      child: Row(
-        children: [
-          Icon(icon, size: 14, color: AppColor.faint),
-          const SizedBox(width: 4),
-          Text(
-            '$label $value',
-            style: const TextStyle(fontSize: 12.5, color: AppColor.muted),
-          ),
-        ],
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        decoration: BoxDecoration(
+          color: tone.soft,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: tone.strong),
+            const SizedBox(width: 6),
+            Text(
+              '$value',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: tone.ink,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: tone.ink.withValues(alpha: 0.8),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

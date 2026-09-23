@@ -18,7 +18,8 @@ class SyncStrip extends ConsumerWidget {
     if (session.isSettled) return const SizedBox.shrink();
 
     final pending = session.pendingCount;
-    void retry() => unawaited(ref.read(judgeSessionProvider.notifier).syncNow());
+    void retry() =>
+        unawaited(ref.read(judgeSessionProvider.notifier).syncNow());
 
     if (session.offline) {
       return StatusStrip(

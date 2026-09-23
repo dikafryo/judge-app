@@ -299,10 +299,7 @@ class JudgeSession extends StateNotifier<JudgeState> {
         }
 
         _failures += 1;
-        state = state.copyWith(
-          offline: e.isOffline,
-          serverError: !e.isOffline,
-        );
+        state = state.copyWith(offline: e.isOffline, serverError: !e.isOffline);
       }
     } finally {
       _refreshing = false;
