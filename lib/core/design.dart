@@ -827,7 +827,8 @@ class StatusStrip extends StatelessWidget {
                   foregroundColor: foreground,
                   minimumSize: const Size(0, 36),
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  textStyle: const TextStyle(
+                  // 테마 글꼴을 물려받도록 labelLarge 에서 파생한다.
+                  textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w800,
                   ),
