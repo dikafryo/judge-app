@@ -377,7 +377,6 @@ Future<void> _capture(WidgetTester tester, String name) async {
   // 그림자가 납작한 띠로 나온다. 찍는 동안만 켜고 곧바로 되돌린다 — 테스트 본문이
   // 끝날 때 이 값이 바뀌어 있으면 flutter_test 가 실패시킨다.
   debugDisableShadows = false;
-  tester.binding.renderView.markNeedsPaint();
   for (final e in tester.allElements) {
     e.renderObject?.markNeedsPaint();
   }
