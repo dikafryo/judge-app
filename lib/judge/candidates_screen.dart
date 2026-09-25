@@ -333,17 +333,13 @@ class _Header extends StatelessWidget {
                   ),
                 ),
               ),
-              _HeaderAction(
+              HeroAction(
                 tooltip: payload.hasSignature ? '서명 다시 하기' : '서명하기',
                 icon: payload.hasSignature ? Icons.draw : Icons.draw_outlined,
                 highlighted: payload.hasSignature,
                 onTap: onSign,
               ),
-              _HeaderAction(
-                tooltip: '나가기',
-                icon: Icons.logout,
-                onTap: onSignOut,
-              ),
+              HeroAction(tooltip: '나가기', icon: Icons.logout, onTap: onSignOut),
             ],
           ),
           const SizedBox(height: 18),
@@ -439,42 +435,6 @@ class _Header extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// 머리 판 오른쪽 위의 둥근 흰 단추.
-class _HeaderAction extends StatelessWidget {
-  const _HeaderAction({
-    required this.tooltip,
-    required this.icon,
-    required this.onTap,
-    this.highlighted = false,
-  });
-
-  final String tooltip;
-  final IconData icon;
-  final VoidCallback onTap;
-  final bool highlighted;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 6),
-      child: Material(
-        color: Colors.white.withValues(alpha: highlighted ? 0.9 : 0.16),
-        borderRadius: BorderRadius.circular(14),
-        clipBehavior: Clip.antiAlias,
-        child: IconButton(
-          tooltip: tooltip,
-          onPressed: onTap,
-          icon: Icon(
-            icon,
-            size: 21,
-            color: highlighted ? AppColor.accent : Colors.white,
-          ),
-        ),
       ),
     );
   }

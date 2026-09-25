@@ -1086,6 +1086,42 @@ class _Bubble extends StatelessWidget {
   }
 }
 
+/// 그라데이션 머리 판([HeroPanel]) 위의 둥근 흰 단추. 목록·관리자 머리에서 같이 쓴다.
+class HeroAction extends StatelessWidget {
+  const HeroAction({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+    this.highlighted = false,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: Material(
+        color: Colors.white.withValues(alpha: highlighted ? 0.9 : 0.16),
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: IconButton(
+          tooltip: tooltip,
+          onPressed: onTap,
+          icon: Icon(
+            icon,
+            size: 21,
+            color: highlighted ? AppColor.accent : Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 색 바탕에 아이콘 하나. 목록 줄 앞, 설정 줄 앞에 둔다.
 class IconBadge extends StatelessWidget {
   const IconBadge({
