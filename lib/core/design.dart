@@ -1089,6 +1089,7 @@ class _Bubble extends StatelessWidget {
 /// 그라데이션 머리 판([HeroPanel]) 위의 둥근 흰 단추. 목록·관리자 머리에서 같이 쓴다.
 class HeroAction extends StatelessWidget {
   const HeroAction({
+    super.key,
     required this.tooltip,
     required this.icon,
     required this.onTap,
