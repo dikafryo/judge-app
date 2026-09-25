@@ -323,10 +323,10 @@ class _Header extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         '${payload.judgeName} 심사위원',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white.withValues(alpha: 0.8),
+                          color: Colors.white,
                         ),
                       ),
                     ],
@@ -360,10 +360,10 @@ class _Header extends StatelessWidget {
                     Expanded(
                       child: Text(
                         '심사 진행',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700,
-                          color: Colors.white.withValues(alpha: 0.85),
+                          color: Colors.white,
                         ),
                       ),
                     ),
@@ -378,10 +378,10 @@ class _Header extends StatelessWidget {
                     ),
                     Text(
                       ' / $total',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white.withValues(alpha: 0.8),
+                        color: Colors.white,
                       ),
                     ),
                   ],
@@ -415,18 +415,18 @@ class _Header extends StatelessWidget {
                     Expanded(
                       child: Text(
                         formatSyncedAt(session.lastSyncedAt),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white.withValues(alpha: 0.85),
+                          color: Colors.white,
                         ),
                       ),
                     ),
                     Text(
                       session.syncing ? '전송 중' : '당겨서 새로고침',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 11.5,
-                        color: Colors.white.withValues(alpha: 0.65),
+                        color: Colors.white,
                       ),
                     ),
                   ],
@@ -473,10 +473,10 @@ class _ResumeCard extends StatelessWidget {
               children: [
                 Text(
                   '이어서 채점하기 · $remaining명 남음',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w700,
-                    color: Colors.white.withValues(alpha: 0.7),
+                    color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 3),

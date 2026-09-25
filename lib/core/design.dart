@@ -1312,9 +1312,13 @@ class LetterAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final letter = text.trim().isEmpty
+    final trimmed = text.trim();
+    // 숫자(묶음 번호 등)는 통째로 보여 준다 — 첫 글자만 쓰면 10번이 '1' 이 된다.
+    final letter = trimmed.isEmpty
         ? '?'
-        : String.fromCharCode(text.trim().runes.first);
+        : RegExp(r'^\d{1,3}$').hasMatch(trimmed)
+        ? trimmed
+        : String.fromCharCode(trimmed.runes.first);
 
     return Container(
       width: size,

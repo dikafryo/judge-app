@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:judge_app/models/payload.dart';
 
+/// 실제 서버 GET /judge/me 응답 모양(JudgePayloadService::build)과 같은 키를 갖춘다.
 Map<String, dynamic> sample({bool blind = false}) => {
-  'judge': {'id': 7, 'name': '홍길동'},
+  'judge': {'id': 7, 'name': '홍길동', 'code': '483920'},
   'event': {'name': '샘플 행사', 'is_open': true, 'is_blind': blind},
+  'defaultScorePercent': null,
   'groups': [
     {
       'id': 1,

@@ -18,6 +18,7 @@ class AdminEvent {
     required this.scoringNote,
     required this.showJudgeSigns,
     required this.reportSigners,
+    this.isDemo = false,
     this.passCount,
     this.defaultScorePercent,
   });
@@ -26,6 +27,9 @@ class AdminEvent {
   final String name;
   final bool isOpen;
   final bool isBlind;
+
+  /// 체험 행사. 서버가 쓰기를 모두 막으므로(423) 화면이 미리 알려야 한다.
+  final bool isDemo;
 
   /// 'all' = 전체 합계·평균, 'trimmed' = 대상별 최고·최저 총점 심사위원 제외
   final String scoringMethod;
@@ -43,6 +47,7 @@ class AdminEvent {
     name: json['name'] as String? ?? '',
     isOpen: json['is_open'] as bool? ?? true,
     isBlind: json['is_blind'] as bool? ?? false,
+    isDemo: json['is_demo'] as bool? ?? false,
     scoringMethod: json['scoring_method'] as String? ?? 'all',
     scoringNote: json['scoring_note'] as String? ?? '',
     showJudgeSigns: json['show_judge_signs'] as bool? ?? true,
@@ -260,6 +265,7 @@ class Dashboard {
     required this.eventName,
     required this.isOpen,
     required this.totalMax,
+    required this.scoringMethod,
     required this.scoringNote,
     required this.rows,
     required this.judges,
@@ -271,13 +277,16 @@ class Dashboard {
   final String eventName;
   final bool isOpen;
   final int totalMax;
+
+  /// 'all' | 'trimmed'. 설명문([scoringNote])을 뒤져 방식을 추측하지 않도록 서버 값을 그대로 쓴다.
+  final String scoringMethod;
   final String scoringNote;
   final List<DashboardRow> rows;
   final List<JudgeProgress> judges;
   final String generatedAt;
   final int? passCount;
 
-  /// 마지막 선정 순위에 동점이 있어 선정자 수를 넘긴 상태. 발표 전에 반드시 해소해야 한다.
+  /// 마지막 선정 순위에 동점이 있어 선정 수를 넘긴 상태. 발표 전에 반드시 해소해야 한다.
   final Map<String, dynamic>? passTie;
 
   factory Dashboard.fromJson(Map<String, dynamic> json) {
@@ -287,6 +296,7 @@ class Dashboard {
       eventName: event['name'] as String? ?? '',
       isOpen: event['is_open'] as bool? ?? true,
       totalMax: (event['total_max'] as num?)?.toInt() ?? 0,
+      scoringMethod: event['scoring_method'] as String? ?? 'all',
       scoringNote: event['scoring_note'] as String? ?? '',
       passCount: event['pass_count'] as int?,
       passTie: json['pass_tie'] as Map<String, dynamic>?,

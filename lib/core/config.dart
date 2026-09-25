@@ -40,3 +40,19 @@ String? updateTargetUrl(String? installerStore) {
 
 /// 서버가 기대하는 API 버전. 서버 /api/v1/meta 의 api_version 과 다르면 앱을 갱신해야 한다.
 const String kApiVersion = 'v1';
+
+const String kMetaUrl = '$kApiBase/meta';
+
+/// 서버 /meta 응답으로 보아 이 앱이 더 이상 지원되지 않는가.
+///
+/// 응답이 없거나 모양이 이상하면 false — 확인을 못 했다고 멀쩡한 앱을 막으면 안 된다.
+bool isUnsupportedBuild(Map<String, dynamic>? meta, int buildNumber) {
+  if (meta == null) return false;
+
+  final apiVersion = meta['api_version'];
+  final minBuild = meta['min_app_build'];
+
+  if (apiVersion is String && apiVersion != kApiVersion) return true;
+
+  return minBuild is int && buildNumber < minBuild;
+}

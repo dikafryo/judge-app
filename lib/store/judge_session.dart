@@ -324,16 +324,35 @@ class JudgeSession extends StateNotifier<JudgeState> {
 
   /// 토큰이 죽었다. 행사를 마감하면 서버가 코드와 토큰을 함께 회수하므로,
   /// 사용자에게는 "없는 주소"가 아니라 **코드 만료**로 설명해야 원인을 안다.
+  ///
+  /// 못 보낸 점수가 남아 있으면 **조용히 지우지 않는다.** 토큰이 죽어 다시 보낼 길은 없지만,
+  /// 심사위원이 "들어간 줄 알았던 점수"가 몇 건인지는 알아야 주최자에게 말할 수 있다.
+  /// 기기 저장소는 비우되, 못 보낸 목록은 로그아웃 상태의 메모리에 남겨 둔다.
   Future<void> _expire() async {
+    final unsent = state.queue;
+
     _stopPolling();
     await _store.clear();
     _token = null;
 
-    state = const JudgeState(
+    state = JudgeState(
       status: SessionStatus.signedOut,
-      notice: '접속 코드가 만료되었습니다. 심사가 마감되었거나 코드가 새로 발급된 경우입니다.',
+      queue: unsent,
+      notice: expiredNotice(
+        unsent.length,
+        withSignature: unsent.any((op) => op.candidateId == null),
+      ),
     );
   }
+
+  /// 코드 만료 안내 문구. 못 보낸 건이 있으면 그 수를 앞세운다.
+  @visibleForTesting
+  static String expiredNotice(int unsent, {bool withSignature = false}) =>
+      unsent == 0
+      ? '접속 코드가 만료되었습니다. 심사가 마감되었거나 코드가 새로 발급된 경우입니다.'
+      : '접속이 만료되어(심사 마감 또는 코드 변경) 전송하지 못한 '
+            '${withSignature ? '점수·서명' : '점수'} $unsent건이 있습니다. '
+            '주최자에게 알려 주세요.';
 
   Future<void> signOut() async {
     final token = _token;

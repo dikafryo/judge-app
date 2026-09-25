@@ -255,6 +255,7 @@ class _ScoringScreenState extends ConsumerState<ScoringScreen> {
                 const SizedBox(height: 14),
                 for (final (index, group) in payload.groups.indexed) ...[
                   _GroupCard(
+                    number: index + 1,
                     group: group,
                     tone: AppToneColors.at(index),
                     subtotal: group.items.fold<double>(
@@ -331,36 +332,42 @@ class _TotalCard extends StatelessWidget {
                   children: [
                     Text(
                       '합계',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white.withValues(alpha: 0.8),
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Text(
-                          formatScore(total),
-                          style: const TextStyle(
-                            fontSize: 38,
-                            height: 1.1,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -1,
-                            color: Colors.white,
+                    // 좁은 화면에서 오른쪽 알약에 밀리면 넘치지 않고 조금 줄어든다
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            formatScore(total),
+                            style: const TextStyle(
+                              fontSize: 38,
+                              height: 1.1,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -1,
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
-                        Text(
-                          ' / $totalMax점',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white.withValues(alpha: 0.8),
+                          Text(
+                            ' / $totalMax점',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -385,10 +392,10 @@ class _TotalCard extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       '입력한 항목',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white.withValues(alpha: 0.85),
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(width: 6),
@@ -430,12 +437,14 @@ class _TotalCard extends StatelessWidget {
 /// 머리에 묶음 소계를 둔다 — "이 묶음에서 몇 점을 줬는지" 를 더해 보지 않아도 된다.
 class _GroupCard extends StatelessWidget {
   const _GroupCard({
+    required this.number,
     required this.group,
     required this.tone,
     required this.subtotal,
     required this.children,
   });
 
+  final int number;
   final CriterionGroup group;
   final AppTone tone;
   final double subtotal;
@@ -454,7 +463,8 @@ class _GroupCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             child: Row(
               children: [
-                IconBadge(icon: Icons.category_outlined, tone: tone, size: 32),
+                // 묶음마다 같은 아이콘이면 구분이 안 된다 — 번호로 순서를 보여 준다
+                LetterAvatar(text: '$number', tone: tone, size: 32),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -510,9 +520,81 @@ class _ScoreRow extends StatelessWidget {
   final VoidCallback onRelease;
   final VoidCallback onTapValue;
 
+  /// 좁은 화면에서 한 줄에 − 값 + 를 같이 두면 항목명이 ~150dp 에 갇혀 글자 중간에서 끊긴다.
+  static const _narrowBreakpoint = 400.0;
+
+  /// 행 바깥의 가로 여백: 목록 좌우 거터 16×2 + 묶음 카드의 색 띠 5.
+  static const _outerGutter = 37.0;
+
   @override
   Widget build(BuildContext context) {
-    final empty = value == null;
+    // LayoutBuilder 를 쓰지 않는다 — 묶음 카드(CardBox accent)가 IntrinsicHeight 로 감싸므로
+    // 그 안에서는 LayoutBuilder 가 동작하지 않는다. 화면 폭에서 바깥 여백을 빼 행 폭을 구한다.
+    final rowWidth = MediaQuery.sizeOf(context).width - _outerGutter;
+
+    return rowWidth < _narrowBreakpoint ? _buildNarrow() : _buildWide();
+  }
+
+  Widget? _description() {
+    if (item.description?.isNotEmpty != true) return null;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text(
+        item.description!,
+        style: const TextStyle(
+          fontSize: 12,
+          height: 1.45,
+          color: AppColor.muted,
+        ),
+      ),
+    );
+  }
+
+  /// 좁은 화면: 1행에 항목명과 배점, 2행에 [−] 값 [+] 를 가득 채운다.
+  Widget _buildNarrow() {
+    final description = _description();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: showName
+                    ? Text(
+                        item.name,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppColor.ink,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+              const SizedBox(width: 8),
+              StatusPill(text: '배점 ${item.maxScore}점'),
+            ],
+          ),
+          ?description,
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _stepButton(Icons.remove, onDecrease),
+              Expanded(child: _valueBox(height: 52, fontSize: 26)),
+              _stepButton(Icons.add, onIncrease),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWide() {
+    final description = _description();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
@@ -539,83 +621,78 @@ class _ScoreRow extends StatelessWidget {
                     color: AppColor.muted,
                   ),
                 ),
-                if (item.description?.isNotEmpty == true)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      item.description!,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        height: 1.45,
-                        color: AppColor.muted,
-                      ),
-                    ),
-                  ),
+                ?description,
               ],
             ),
           ),
           const SizedBox(width: 8),
-          _StepButton(
-            icon: Icons.remove,
-            enabled: enabled,
-            onPress: onDecrease,
-            onRelease: onRelease,
-          ),
-          // 숫자를 누르면 직접 입력. 그냥 글씨로 두면 누를 수 있는 줄 모른다 —
-          // 눌리는 자리를 잉크 효과가 있는 단추로 만든다.
-          Semantics(
-            label: '${item.name} 점수 직접 입력',
-            button: true,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: Material(
-                // 비어 있으면 회색, 넣었으면 묶음 색. 남은 칸이 색으로 드러난다.
-                color: empty ? AppColor.canvas : tone.soft,
-                borderRadius: BorderRadius.circular(AppRadius.button),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: enabled ? onTapValue : null,
-                  child: SizedBox(
-                    width: 64,
-                    height: 48,
-                    child: Center(
-                      child: Text(
-                        empty ? '–' : formatScore(value!),
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: empty ? AppColor.faint : tone.ink,
-                        ),
-                      ),
-                    ),
+          _stepButton(Icons.remove, onDecrease),
+          SizedBox(width: 64, child: _valueBox(height: 52, fontSize: 22)),
+          _stepButton(Icons.add, onIncrease),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepButton(IconData icon, VoidCallback onPress) => _StepButton(
+    icon: icon,
+    enabled: enabled,
+    tone: tone,
+    onPress: onPress,
+    onRelease: onRelease,
+  );
+
+  // 숫자를 누르면 직접 입력. 그냥 글씨로 두면 누를 수 있는 줄 모른다 —
+  // 눌리는 자리를 잉크 효과가 있는 단추로 만든다.
+  Widget _valueBox({required double height, required double fontSize}) {
+    final empty = value == null;
+
+    return Semantics(
+      label: '${item.name} 점수 직접 입력',
+      button: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Material(
+          // 비어 있으면 회색, 넣었으면 묶음 색. 남은 칸이 색으로 드러난다.
+          color: empty ? AppColor.canvas : tone.soft,
+          borderRadius: BorderRadius.circular(AppRadius.button),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: enabled ? onTapValue : null,
+            child: SizedBox(
+              height: height,
+              child: Center(
+                child: Text(
+                  empty ? '–' : formatScore(value!),
+                  style: TextStyle(
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w800,
+                    color: empty ? AppColor.faint : tone.ink,
                   ),
                 ),
               ),
             ),
           ),
-          _StepButton(
-            icon: Icons.add,
-            enabled: enabled,
-            onPress: onIncrease,
-            onRelease: onRelease,
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// 손가락으로 정확히 누를 수 있어야 해서 48×48 을 유지한다(터치 목표 최소 크기).
+/// 행사장에서 한 손으로 정확히 누를 수 있게 52×52(터치 목표 최소 48 이상).
+/// 테두리 선 대신 면 색으로 단추임을 보인다.
 class _StepButton extends StatelessWidget {
   const _StepButton({
     required this.icon,
     required this.enabled,
+    required this.tone,
     required this.onPress,
     required this.onRelease,
   });
 
   final IconData icon;
   final bool enabled;
+  final AppTone tone;
   final VoidCallback onPress;
   final VoidCallback onRelease;
 
@@ -626,14 +703,13 @@ class _StepButton extends StatelessWidget {
       onPointerUp: enabled ? (_) => onRelease() : null,
       onPointerCancel: enabled ? (_) => onRelease() : null,
       child: Container(
-        width: 48,
-        height: 48,
+        width: 52,
+        height: 52,
         decoration: BoxDecoration(
-          color: enabled ? AppColor.surface : AppColor.field,
-          borderRadius: BorderRadius.circular(AppRadius.button),
-          border: Border.all(color: AppColor.line, width: 1.5),
+          color: enabled ? AppColor.canvas : AppColor.field,
+          borderRadius: BorderRadius.circular(14),
         ),
-        child: Icon(icon, color: enabled ? AppColor.ink : AppColor.faint),
+        child: Icon(icon, size: 24, color: enabled ? tone.ink : AppColor.faint),
       ),
     );
   }

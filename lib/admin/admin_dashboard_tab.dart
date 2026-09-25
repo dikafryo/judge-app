@@ -129,9 +129,9 @@ class _AdminDashboardTabState extends ConsumerState<AdminDashboardTab> {
             children: [
               Expanded(
                 child: StatTile(
-                  label: '선정 인원',
+                  label: '선정 수',
                   value: data.passCount?.toString() ?? '–',
-                  suffix: data.passCount == null ? null : '곳',
+                  suffix: data.passCount == null ? null : ' 곳',
                   tone: AppTone.amber,
                   icon: Icons.emoji_events_outlined,
                 ),
@@ -205,7 +205,7 @@ class _AdminDashboardTabState extends ConsumerState<AdminDashboardTab> {
 extension on Dashboard {
   /// 집계 방식을 순위 머리에 짧게 적는다. 긴 설명([scoringNote])은 맨 아래에 있다.
   String get scoringMethodLabel =>
-      scoringNote.contains('제외') ? '최고·최저 제외' : '전체 평균';
+      scoringMethod == 'trimmed' ? '최고·최저 제외' : '전체 평균';
 }
 
 class _JudgeProgressCard extends StatelessWidget {
@@ -286,7 +286,7 @@ class _JudgeRow extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
-                        color: complete ? AppColor.success : AppColor.muted,
+                        color: complete ? AppTone.teal.ink : AppColor.muted,
                       ),
                     ),
                   ],
@@ -297,7 +297,8 @@ class _JudgeRow extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: ratio,
                     minHeight: 6,
-                    color: complete ? AppColor.success : tone.strong,
+                    // 완료는 teal, 진행은 강조색 하나. 초록은 '진행 중'·'서명' 전용이다.
+                    color: complete ? AppTone.teal.strong : AppColor.accent,
                     backgroundColor: AppColor.canvas,
                   ),
                 ),

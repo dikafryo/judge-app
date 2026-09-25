@@ -261,7 +261,7 @@ class _EventTile extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              LetterAvatar(text: event.name, tone: tone, size: 46),
+              _EventMark(date: event.date, tone: tone),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -351,7 +351,69 @@ class _EventTile extends StatelessWidget {
   }
 }
 
-/// 대상 12 · 항목 3 처럼 한 줄로 늘어놓던 것을 색 상자 세 개로 나눈다.
+/// 행사 카드 앞의 표식. 행사명 첫 글자("제", "2", "봄")는 아무 뜻이 없어
+/// 날짜가 있으면 달력 한 장처럼 월·일을, 없으면 행사 아이콘을 둔다.
+class _EventMark extends StatelessWidget {
+  const _EventMark({required this.date, required this.tone});
+
+  final String? date;
+  final AppTone tone;
+
+  static const _size = 46.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final day = date == null ? null : DateTime.tryParse(date!);
+
+    if (day == null) {
+      return IconBadge(
+        icon: Icons.event_note_outlined,
+        tone: tone,
+        size: _size,
+      );
+    }
+
+    return Semantics(
+      label: '${day.month}월 ${day.day}일',
+      child: ExcludeSemantics(
+        child: Container(
+          width: _size,
+          height: _size,
+          decoration: BoxDecoration(
+            color: tone.soft,
+            borderRadius: BorderRadius.circular(_size * 0.3),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '${day.month}월',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  height: 1.1,
+                  fontWeight: FontWeight.w700,
+                  color: tone.ink,
+                ),
+              ),
+              Text(
+                '${day.day}',
+                style: TextStyle(
+                  fontSize: 19,
+                  height: 1.1,
+                  fontWeight: FontWeight.w800,
+                  color: tone.ink,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 대상 · 항목 · 심사위원 수를 색 상자 세 개로 나눈다.
+/// 숫자와 이름을 한 줄에 두면 좁은 폭에서 "5 심사…" 처럼 잘려 위아래로 쌓는다.
 class _Stat extends StatelessWidget {
   const _Stat({
     required this.icon,
@@ -374,28 +436,31 @@ class _Stat extends StatelessWidget {
           color: tone.soft,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 16, color: tone.strong),
-            const SizedBox(width: 6),
-            Text(
-              '$value',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: tone.ink,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                  color: tone.ink.withValues(alpha: 0.8),
+            Row(
+              children: [
+                Icon(icon, size: 16, color: tone.strong),
+                const SizedBox(width: 6),
+                Text(
+                  '$value',
+                  style: TextStyle(
+                    fontSize: 18,
+                    height: 1.1,
+                    fontWeight: FontWeight.w800,
+                    color: tone.ink,
+                  ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                color: tone.ink,
               ),
             ),
           ],

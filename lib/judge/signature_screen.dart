@@ -34,6 +34,30 @@ void paintStrokes(Canvas canvas, List<List<Offset>> strokes) {
   }
 }
 
+/// 서버는 서명 dataURL 을 20만 자(`max:200000`)까지 받는다. 여유를 두고 19만 자.
+const kSignatureMaxChars = 190000;
+
+/// 크게 구울수록 인쇄가 선명하지만 길어진다. 앞에서부터 시도해 한도 안에 드는 첫 배율을 쓴다.
+const kSignatureScales = [2.0, 1.5, 1.0];
+
+/// [render] 로 배율마다 구워 보고, 한도 안에 드는 첫 결과를 돌려준다.
+/// 가장 작은 배율로도 넘치면 그 결과를 그대로 돌려준다(서버가 거절하면 알림으로 드러난다).
+Future<String> encodeWithinLimit(
+  Future<String> Function(double scale) render, {
+  List<double> scales = kSignatureScales,
+  int maxChars = kSignatureMaxChars,
+}) async {
+  var result = '';
+
+  for (final scale in scales) {
+    result = await render(scale);
+
+    if (result.length <= maxChars) return result;
+  }
+
+  return result;
+}
+
 class SignatureScreen extends ConsumerStatefulWidget {
   const SignatureScreen({super.key});
 
@@ -50,9 +74,12 @@ class _SignatureScreenState extends ConsumerState<SignatureScreen> {
 
   bool get _isEmpty => _strokes.every((stroke) => stroke.length < 2);
 
-  Future<String> _toDataUrl() async {
-    // 실제 크기의 2배로 구워 인쇄물에서 계단현상이 보이지 않게 한다.
-    const scale = 2.0;
+  /// 기본은 실제 크기의 2배로 구워 인쇄물에서 계단현상이 보이지 않게 한다.
+  /// 서버 한도를 넘으면 [encodeWithinLimit] 가 배율을 낮춰 다시 굽는다.
+  Future<String> _toDataUrl() => encodeWithinLimit(_render);
+
+  /// 저장용 PNG 에는 획만 굽는다 — 화면의 안내 문구·기준선은 들어가면 안 된다.
+  Future<String> _render(double scale) async {
     final width = (_canvas.width * scale).round();
     final height = (_canvas.height * scale).round();
 
@@ -66,6 +93,7 @@ class _SignatureScreenState extends ConsumerState<SignatureScreen> {
 
     final image = await recorder.endRecording().toImage(width, height);
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
 
     return 'data:image/png;base64,${base64Encode(bytes!.buffer.asUint8List())}';
   }
@@ -126,9 +154,22 @@ class _SignatureScreenState extends ConsumerState<SignatureScreen> {
                         onPanUpdate: (details) => setState(
                           () => _strokes.last.add(details.localPosition),
                         ),
-                        child: CustomPaint(
-                          painter: _SignaturePainter(_strokes),
-                          size: Size.infinite,
+                        child: Stack(
+                          children: [
+                            // 기준선·안내는 화면에만 있는 겹. PNG 는 paintStrokes 만 굽는다.
+                            Positioned(
+                              left: 24,
+                              right: 24,
+                              top: constraints.maxHeight * 0.8,
+                              child: Container(height: 1, color: AppColor.line),
+                            ),
+                            if (_isEmpty) const _EmptyHint(),
+                            Positioned.fill(
+                              child: CustomPaint(
+                                painter: _SignaturePainter(_strokes),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );
@@ -185,4 +226,32 @@ class _SignaturePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SignaturePainter oldDelegate) => true;
+}
+
+/// 빈 서명 칸 안내. 어디에 그어야 하는지 모르는 칸은 비어 보이기만 한다.
+class _EmptyHint extends StatelessWidget {
+  const _EmptyHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Positioned.fill(
+      child: IgnorePointer(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.draw_outlined, size: 28, color: AppColor.muted),
+            SizedBox(height: 8),
+            Text(
+              '여기에 서명하세요',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppColor.muted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

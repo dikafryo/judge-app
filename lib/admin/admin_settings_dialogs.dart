@@ -75,7 +75,6 @@ class _ReportSettingsDialogState extends State<_ReportSettingsDialog> {
             color: AppColor.field,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadius.field),
-              side: const BorderSide(color: AppColor.line),
             ),
             clipBehavior: Clip.antiAlias,
             child: SwitchListTile(
@@ -127,12 +126,19 @@ class _ReportSettingsDialogState extends State<_ReportSettingsDialog> {
                 ),
               ),
               const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  role == '기록자' && !_showJudgeSigns ? '필수' : '비워 두면 표시하지 않습니다',
-                  style: const TextStyle(fontSize: 11.5, color: AppColor.faint),
+              if (role == '기록자' && !_showJudgeSigns)
+                const StatusPill(
+                  text: '필수',
+                  color: AppColor.dangerInk,
+                  background: AppColor.dangerSoft,
+                )
+              else
+                const Expanded(
+                  child: Text(
+                    '비워 두면 표시하지 않습니다',
+                    style: TextStyle(fontSize: 12, color: AppColor.muted),
+                  ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 8),

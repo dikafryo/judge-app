@@ -27,12 +27,28 @@ class AdminCriteriaTab extends StatelessWidget {
           body: ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
             children: [
-              NoticeBox(
-                tone: remaining > 0 ? NoticeTone.warn : NoticeTone.good,
-                text: '1레벨 배점 합계 ${data.totalMax} / 100점',
-                detail: remaining > 0
-                    ? '$remaining점 더 배정할 수 있습니다.'
-                    : '배점이 모두 배정되었습니다.',
+              SectionCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ProgressRow(
+                      label: '1레벨 배점 합계',
+                      value: data.totalMax,
+                      total: 100,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      remaining > 0
+                          ? '$remaining점 더 배정할 수 있습니다.'
+                          : '배점이 모두 배정되었습니다.',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: remaining > 0 ? AppColor.warn : AppTone.teal.ink,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 12),
               if (top.isEmpty)
@@ -43,6 +59,7 @@ class AdminCriteriaTab extends StatelessWidget {
                 ),
               for (final (index, parent) in top.indexed)
                 _CriterionCard(
+                  index: index,
                   parent: parent,
                   tone: AppToneColors.at(index),
                   children: data.childrenOf(parent.id),
@@ -195,6 +212,7 @@ class _CriterionDialogState extends State<_CriterionDialog> {
 
 class _CriterionCard extends StatelessWidget {
   const _CriterionCard({
+    required this.index,
     required this.parent,
     required this.tone,
     required this.children,
@@ -202,6 +220,8 @@ class _CriterionCard extends StatelessWidget {
     required this.onDelete,
   });
 
+  /// 몇 번째 1레벨 항목인지. 같은 아이콘을 늘어놓는 대신 번호로 구분한다.
+  final int index;
   final SetupCriterion parent;
   final AppTone tone;
   final List<SetupCriterion> children;
@@ -225,11 +245,7 @@ class _CriterionCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
               child: Row(
                 children: [
-                  IconBadge(
-                    icon: Icons.category_outlined,
-                    tone: tone,
-                    size: 34,
-                  ),
+                  LetterAvatar(text: '${index + 1}', tone: tone, size: 34),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -266,7 +282,7 @@ class _CriterionCard extends StatelessWidget {
                     icon: const Icon(
                       Icons.delete_outline,
                       size: 20,
-                      color: AppColor.faint,
+                      color: AppColor.muted,
                     ),
                     onPressed: () => onDelete(parent),
                   ),
@@ -324,7 +340,7 @@ class _CriterionCard extends StatelessWidget {
                       icon: const Icon(
                         Icons.delete_outline,
                         size: 18,
-                        color: AppColor.faint,
+                        color: AppColor.muted,
                       ),
                       onPressed: () => onDelete(child),
                     ),
@@ -553,7 +569,7 @@ class _Row extends StatelessWidget {
             icon: const Icon(
               Icons.delete_outline,
               size: 20,
-              color: AppColor.faint,
+              color: AppColor.muted,
             ),
             onPressed: onDelete,
           ),

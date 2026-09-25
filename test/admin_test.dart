@@ -10,8 +10,37 @@ import 'package:judge_app/core/api.dart';
 import 'package:judge_app/models/admin.dart';
 import 'package:judge_app/store/admin_api.dart';
 
+/// 서버 AdminApiController::show() 와 같은 모양의 행사 정보.
+/// scoring-method · report-signers 저장도 이 모양을 그대로 돌려준다.
+Map<String, dynamic> showEvent({bool isDemo = false}) => {
+  'id': 3,
+  'name': '가을 심사',
+  'description': null,
+  'event_date': '2026-10-01',
+  'is_open': true,
+  'is_demo': isDemo,
+  'is_blind': true,
+  'scoring_method': 'trimmed',
+  'scoring_note': '최고·최저 제외',
+  'pass_count': 2,
+  'default_score_percent': 90,
+  'show_judge_signs': false,
+  'report_signers': [
+    {'role': '기록자', 'dept': '총무과', 'position': '주무관', 'name': '김기록'},
+  ],
+};
+
+/// 로그인·생성 응답에 함께 실리는 행사 요약 (SessionController::admin, EventApiController::store).
+const sessionEvent = {'id': 3, 'name': '가을 심사', 'is_open': true};
+
 /// 앱이 실제로 부른 주소를 기록하는 가짜 서버.
 class FakeAdminServer {
+  FakeAdminServer({this.isDemo = false, this.failSignOut = false});
+
+  final bool isDemo;
+
+  /// 참이면 로그아웃 요청에 연결 오류처럼 500 을 돌려준다.
+  final bool failSignOut;
   final List<String> calls = [];
   final List<Map<String, dynamic>> bodies = [];
 
@@ -25,9 +54,19 @@ class FakeAdminServer {
 
     final path = request.url.path;
 
-    if (path.endsWith('/admin/session')) return _json({'token': 'admin-token'});
+    if (path.endsWith('/admin/session')) {
+      return _json({'token': 'admin-token', 'event': sessionEvent});
+    }
+    if (path.endsWith('/session') && request.method == 'DELETE') {
+      return failSignOut
+          ? _json({'message': '서버 오류'}, status: 500)
+          : _json({'message': '로그아웃되었습니다.'});
+    }
     if (path.endsWith('/events') && request.method == 'POST') {
-      return _json({'token': 'admin-token'}, status: 201);
+      return _json({
+        'token': 'admin-token',
+        'event': sessionEvent,
+      }, status: 201);
     }
     if (path.endsWith('/events')) {
       return _json({
@@ -47,22 +86,7 @@ class FakeAdminServer {
     if (path.endsWith('/admin/event') && request.method == 'DELETE') {
       return _json({'message': "'가을 심사' 행사와 모든 심사 데이터가 삭제되었습니다."});
     }
-    if (path.endsWith('/admin/event')) {
-      return _json({
-        'id': 3,
-        'name': '가을 심사',
-        'is_open': true,
-        'is_blind': true,
-        'scoring_method': 'trimmed',
-        'scoring_note': '최고·최저 제외',
-        'pass_count': 2,
-        'default_score_percent': 90,
-        'show_judge_signs': false,
-        'report_signers': [
-          {'role': '기록자', 'dept': '총무과', 'position': '주무관', 'name': '김기록'},
-        ],
-      });
-    }
+    if (path.endsWith('/admin/event')) return _json(showEvent(isDemo: isDemo));
     if (path.endsWith('/admin/setup')) {
       return _json({
         'criteria': [
@@ -104,11 +128,9 @@ class FakeAdminServer {
     if (path.endsWith('/admin/toggle-open')) {
       return _json({'message': '심사가 마감되었습니다.', 'is_open': false});
     }
-    if (path.endsWith('/admin/scoring-method')) {
-      return _json({'message': '저장되었습니다.'});
-    }
-    if (path.endsWith('/admin/report-signers')) {
-      return _json({'message': '최종집계표 설정이 저장되었습니다.'});
+    if (path.endsWith('/admin/scoring-method') ||
+        path.endsWith('/admin/report-signers')) {
+      return _json(showEvent(isDemo: isDemo));
     }
 
     return _json({'message': '알 수 없는 요청: $path'}, status: 404);
@@ -214,12 +236,14 @@ void main() {
         'name': '가을 심사',
         'is_open': true,
         'total_max': 100,
-        'scoring_note': '전체 합계',
+        'scoring_method': 'trimmed',
+        'scoring_note': '평가대상별 최고·최저 총점 심사위원을 제외하고 집계합니다.',
         'pass_count': 2,
       },
-      'pass_tie': {'rank': 2},
+      'pass_tie': {'rank': 2, 'tied': 2, 'slots': 1},
       'judges': [
         {
+          'judge_id': 4,
           'name': '김심사',
           'done': 3,
           'total': 5,
@@ -232,6 +256,9 @@ void main() {
           'candidate_id': 9,
           'number': '01',
           'name': '가나다',
+          'affiliation': '가람',
+          'by_judge': {'4': 88.0},
+          'by_judge_excluded': <String, dynamic>{},
           'sum': 88.0,
           'avg': 88.0,
           'rank': 1,
@@ -242,9 +269,14 @@ void main() {
           'candidate_id': 10,
           'number': '02',
           'name': '라마바',
-          'sum': null,
+          'affiliation': null,
+          'by_judge': {'4': null},
+          'by_judge_excluded': <String, dynamic>{},
+          // 서버는 채점 전에도 합계를 0 으로 보낸다(round(array_sum([]))). 순위·평균만 null.
+          'sum': 0,
           'avg': null,
           'rank': null,
+          'pass': null,
           'judged_count': 0,
         },
       ],
@@ -254,8 +286,73 @@ void main() {
     expect(dashboard.rows.first.rank, 1);
     expect(dashboard.rows.first.pass, 'pass');
     expect(dashboard.rows.last.avg, isNull, reason: '아직 채점 안 된 대상은 순위가 없다');
+    expect(dashboard.rows.last.sum, 0);
+    expect(
+      dashboard.scoringMethod,
+      'trimmed',
+      reason: '설명문을 뒤지지 않고 서버의 집계 방식 값을 그대로 쓴다',
+    );
     expect(dashboard.passTie, isNotNull, reason: '선정 경계 동점은 발표 전에 알려야 한다');
     expect(dashboard.judges.single.done, 3);
+  });
+
+  test('체험 행사 여부를 행사 정보에서 읽는다', () async {
+    final real = await AdminApi.signIn(
+      Api(client: FakeAdminServer().client),
+      3,
+      'pw',
+    );
+    final demo = await AdminApi.signIn(
+      Api(client: FakeAdminServer(isDemo: true).client),
+      3,
+      'pw',
+    );
+
+    expect(real.event.isDemo, isFalse);
+    expect(demo.event.isDemo, isTrue);
+  });
+
+  test('집계 설정 저장 응답(행사 정보)을 받아도 오류 없이 끝난다', () async {
+    final (admin, server) = await signedIn();
+    server.calls.clear();
+
+    await admin.updateScoringMethod(method: 'all', isBlind: false);
+    await admin.updateReportSigners(showJudgeSigns: true, signers: const []);
+
+    expect(server.calls, [
+      'PUT /api/v1/admin/scoring-method',
+      'PUT /api/v1/admin/report-signers',
+    ]);
+  });
+
+  test('행사를 만들면 받은 토큰으로 행사 정보를 읽는다', () async {
+    final server = FakeAdminServer();
+    final admin = await AdminApi.createEvent(
+      Api(client: server.client),
+      name: '가을 심사',
+      password: 'secret12',
+    );
+
+    expect(admin.token, 'admin-token');
+    expect(server.calls, ['POST /api/v1/events', 'GET /api/v1/admin/event']);
+  });
+
+  group('로그아웃', () {
+    test('서버에서 토큰을 폐기한다', () async {
+      final (admin, server) = await signedIn();
+      server.calls.clear();
+
+      await admin.signOut();
+
+      expect(server.calls, ['DELETE /api/v1/session']);
+    });
+
+    test('서버가 실패해도 로그아웃을 막지 않는다', () async {
+      final server = FakeAdminServer(failSignOut: true);
+      final admin = await AdminApi.signIn(Api(client: server.client), 3, 'pw');
+
+      await expectLater(admin.signOut(), completes);
+    });
   });
 
   group('심사 기본점수', () {

@@ -373,6 +373,14 @@ Widget _app(Widget screen) => RepaintBoundary(
 );
 
 Future<void> _capture(WidgetTester tester, String name) async {
+  // flutter_test 는 그림자를 꺼 둔다(debugDisableShadows = true). 그대로 찍으면 카드
+  // 그림자가 납작한 띠로 나온다. 찍는 동안만 켜고 곧바로 되돌린다 — 테스트 본문이
+  // 끝날 때 이 값이 바뀌어 있으면 flutter_test 가 실패시킨다.
+  debugDisableShadows = false;
+  tester.binding.renderView.markNeedsPaint();
+  for (final e in tester.allElements) {
+    e.renderObject?.markNeedsPaint();
+  }
   await tester.pumpAndSettle(const Duration(milliseconds: 600));
 
   final boundary =
@@ -387,6 +395,7 @@ Future<void> _capture(WidgetTester tester, String name) async {
     await file.writeAsBytes(png!.buffer.asUint8List());
     stdout.writeln('wrote ${file.path} ${image.width}x${image.height}');
   });
+  debugDisableShadows = true;
 }
 
 void _phone(WidgetTester tester) {

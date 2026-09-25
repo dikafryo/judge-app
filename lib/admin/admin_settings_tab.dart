@@ -86,7 +86,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
       context: context,
       builder: (context) => AppDialog(
         icon: Icons.emoji_events_outlined,
-        title: '선정자 수',
+        title: '선정 수',
         subtitle: '집계 화면에 상위 몇 곳이 선정으로 표시됩니다.',
         confirmLabel: '저장',
         onConfirm: () => Navigator.pop(context, controller.text),
@@ -208,29 +208,26 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
         ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: [
-            SectionCard(
-              title: '집계 방식',
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: RadioGroup<String>(
-                groupValue: event.scoringMethod,
-                onChanged: (value) {
-                  if (!_busy && value != null) _setMethod(value);
-                },
-                child: const Column(
-                  children: [
-                    RadioListTile<String>(
-                      value: 'all',
-                      title: Text('전체 합계·평균'),
-                      subtitle: Text('모든 심사위원의 점수를 그대로 반영합니다.'),
-                    ),
-                    RadioListTile<String>(
-                      value: 'trimmed',
-                      title: Text('최고·최저 심사위원 제외'),
-                      subtitle: Text('평가대상별로 총점이 가장 높은·낮은 심사위원을 빼고 집계합니다.'),
-                    ),
-                  ],
-                ),
-              ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(4, 0, 4, 8),
+              child: Text('집계 방식', style: SectionCard.sectionTitleStyle),
+            ),
+            _MethodCard(
+              icon: Icons.functions,
+              tone: AppTone.indigo,
+              title: '전체 합계·평균',
+              subtitle: '모든 심사위원의 점수를 그대로 반영합니다.',
+              selected: event.scoringMethod == 'all',
+              onTap: _busy ? null : () => _setMethod('all'),
+            ),
+            const SizedBox(height: 10),
+            _MethodCard(
+              icon: Icons.filter_alt_outlined,
+              tone: AppTone.violet,
+              title: '최고·최저 심사위원 제외',
+              subtitle: '평가대상별로 총점이 가장 높은·낮은 심사위원을 빼고 집계합니다.',
+              selected: event.scoringMethod == 'trimmed',
+              onTap: _busy ? null : () => _setMethod('trimmed'),
             ),
             const SizedBox(height: 20),
             SectionCard(
@@ -276,7 +273,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
                   _SettingRow(
                     icon: Icons.emoji_events_outlined,
                     tone: AppTone.amber,
-                    title: '선정자 수',
+                    title: '선정 수',
                     value: event.passCount == null
                         ? '지정하지 않음'
                         : '상위 ${event.passCount}곳',
@@ -321,6 +318,13 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
                     width: double.infinity,
                     child: event.isOpen
                         ? OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColor.dangerInk,
+                              side: const BorderSide(
+                                color: AppColor.dangerSoft,
+                                width: 1.5,
+                              ),
+                            ),
                             onPressed: _busy ? null : () => _toggleOpen(admin),
                             icon: const Icon(Icons.lock_outline, size: 19),
                             label: const Text('심사 마감하기'),
@@ -341,7 +345,7 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
             // 위험 구역은 시각적으로 떨어뜨려 둔다 — 스크롤하다 눈에 걸려 누르면 안 된다
             SectionCard(
               title: '위험 구역',
-              color: AppColor.dangerSoft.withValues(alpha: 0.45),
+              color: AppColor.surface,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -356,11 +360,10 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
                   const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColor.dangerInk,
-                        side: const BorderSide(color: AppColor.dangerSoft),
-                        backgroundColor: AppColor.dangerSoft,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColor.danger,
+                        foregroundColor: Colors.white,
                       ),
                       onPressed: _busy ? null : () => _deleteEvent(admin),
                       icon: const Icon(Icons.delete_forever_outlined, size: 19),
@@ -377,7 +380,16 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
     );
   }
 
-  Future<void> _setMethod(String method) => _apply(
+  Future<void> _setMethod(String method) async {
+    final admin = ref.read(adminApiProvider);
+
+    // 이미 고른 방식을 다시 누르면 서버를 부르지 않는다.
+    if (admin == null || admin.event.scoringMethod == method) return;
+
+    await _updateMethod(method);
+  }
+
+  Future<void> _updateMethod(String method) => _apply(
     (admin) => admin.updateScoringMethod(
       method: method,
       isBlind: admin.event.isBlind,
@@ -385,6 +397,82 @@ class _AdminSettingsTabState extends ConsumerState<AdminSettingsTab> {
       defaultScorePercent: admin.event.defaultScorePercent,
     ),
   );
+}
+
+/// 집계 방식 하나를 고르는 카드. 라디오 단추 두 줄보다 고른 쪽이 한눈에 보인다.
+class _MethodCard extends StatelessWidget {
+  const _MethodCard({
+    required this.icon,
+    required this.tone,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final AppTone tone;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      inMutuallyExclusiveGroup: true,
+      selected: selected,
+      enabled: onTap != null,
+      child: CardBox(
+        outline: selected ? AppColor.accent : null,
+        color: selected ? AppColor.accentSoft : AppColor.surface,
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        onTap: onTap,
+        child: Row(
+          children: [
+            IconBadge(icon: icon, tone: tone, size: 38),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColor.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      height: 1.45,
+                      color: AppColor.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 24,
+              child: selected
+                  ? const Icon(
+                      Icons.check_circle,
+                      size: 22,
+                      color: AppColor.accent,
+                    )
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// 눌러서 값을 고치는 설정 한 줄. 지금 값이 무엇인지가 제목만큼 중요해서

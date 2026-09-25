@@ -103,32 +103,40 @@ class _RootState extends ConsumerState<_Root> with WidgetsBindingObserver {
   ///
   /// 받을 곳은 **어디서 깔렸는지**에 따라 다르다. 플레이로 깔린 앱은 서명이 플레이 것이라
   /// 우리가 직접 배포한 APK 를 덮어씌울 수 없다 — 눌러도 "설치되지 않았습니다" 로 끝난다.
+  ///
+  /// 서버 /meta 도 함께 본다. API 가 바뀌었거나 최소 빌드보다 낮으면 옛 앱이 조용히
+  /// 오작동하는 대신 "지원 종료" 로 강하게 안내한다(닫기 단추 없음).
   Future<void> _checkForUpdate() async {
+    const timeout = Duration(seconds: 4);
+
     final info = await PackageInfo.fromPlatform();
-    final release = await HttpJson.get(
-      Uri.parse(kReleaseUrl),
-      timeout: const Duration(seconds: 4),
-    );
+    final (release, meta) = await (
+      HttpJson.get(Uri.parse(kReleaseUrl), timeout: timeout),
+      HttpJson.get(Uri.parse(kMetaUrl), timeout: timeout),
+    ).wait;
 
-    if (release == null || !mounted) return;
+    if (!mounted) return;
 
-    final latest = release['build'];
     final current = int.tryParse(info.buildNumber) ?? 0;
+    final unsupported = isUnsupportedBuild(meta, current);
+    final latest = release?['build'];
+    final newer = latest is int && latest > current;
 
-    if (latest is! int || latest <= current) return;
+    if (!unsupported && !newer) return;
 
     final url = updateTargetUrl(info.installerStore);
 
     // 받을 곳이 없으면 안내하지 않는다 — 아이폰은 앱스토어에 올라가기 전까지 받을 곳이 없다.
     if (url == null) return;
 
+    final version = release?['version'];
+
     setState(() {
       _update = _Update(
-        version: release['version'] is String
-            ? release['version'] as String
-            : '',
+        version: version is String ? version : '',
         url: url,
         fromPlay: info.installerStore == kPlayInstaller,
+        unsupported: unsupported,
       );
     });
   }
@@ -141,8 +149,18 @@ class _RootState extends ConsumerState<_Root> with WidgetsBindingObserver {
 
       if (notice == null || notice == previous?.notice) return;
 
+      // 못 보낸 점수를 남긴 채 쫓겨난 경우는 6초 만에 사라지면 안 된다 — 직접 닫을 때까지 둔다.
+      final lostScores =
+          next.status == SessionStatus.signedOut && next.queue.isNotEmpty;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(notice), duration: const Duration(seconds: 6)),
+        SnackBar(
+          content: Text(notice),
+          duration: lostScores
+              ? const Duration(days: 1)
+              : const Duration(seconds: 6),
+          showCloseIcon: lostScores,
+        ),
       );
 
       ref.read(judgeSessionProvider.notifier).clearNotice();
@@ -180,7 +198,9 @@ class _RootState extends ConsumerState<_Root> with WidgetsBindingObserver {
         ),
         _UpdateBanner(
           update: update,
-          onDismiss: () => setState(() => _update = null),
+          onDismiss: update.unsupported
+              ? null
+              : () => setState(() => _update = null),
         ),
       ],
     );
@@ -193,10 +213,14 @@ class _Update {
     required this.version,
     required this.url,
     required this.fromPlay,
+    this.unsupported = false,
   });
 
   final String version;
   final String url;
+
+  /// 서버가 이 빌드를 더 이상 받지 않는다(/meta). 닫지 못하게 한다.
+  final bool unsupported;
 
   /// 플레이로 깔린 앱인가. 버튼 글씨를 어디로 보내는지 밝히는 데 쓴다.
   final bool fromPlay;
@@ -206,7 +230,9 @@ class _UpdateBanner extends StatelessWidget {
   const _UpdateBanner({required this.update, required this.onDismiss});
 
   final _Update update;
-  final VoidCallback onDismiss;
+
+  /// null 이면 닫기 단추를 두지 않는다(지원 종료).
+  final VoidCallback? onDismiss;
 
   @override
   Widget build(BuildContext context) {
@@ -229,7 +255,9 @@ class _UpdateBanner extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      update.version.isEmpty
+                      update.unsupported
+                          ? '이 버전은 더 이상 지원되지 않습니다. 업데이트해 주세요.'
+                          : update.version.isEmpty
                           ? '새 버전이 있습니다'
                           : '새 버전 v${update.version}',
                       style: const TextStyle(
@@ -265,13 +293,20 @@ class _UpdateBanner extends StatelessWidget {
                     mode: LaunchMode.externalApplication,
                   ),
                 ),
-                child: const Text('업데이트 설치하기'),
+                child: const Text('업데이트'),
               ),
-              IconButton(
-                tooltip: '나중에',
-                icon: const Icon(Icons.close, size: 18, color: AppColor.faint),
-                onPressed: onDismiss,
-              ),
+              if (onDismiss != null)
+                IconButton(
+                  tooltip: '나중에',
+                  icon: const Icon(
+                    Icons.close,
+                    size: 18,
+                    color: AppColor.faint,
+                  ),
+                  onPressed: onDismiss,
+                )
+              else
+                const SizedBox(width: 8),
             ],
           ),
         ),

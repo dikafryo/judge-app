@@ -13,4 +13,38 @@ void main() {
     expect(updateTargetUrl(null), kDownloadUrl);
     expect(updateTargetUrl('com.android.packageinstaller'), kDownloadUrl);
   });
+
+  group('서버 /meta 로 지원 종료 판정', () {
+    test('버전이 같고 최소 빌드 이상이면 지원된다', () {
+      expect(
+        isUnsupportedBuild({'api_version': kApiVersion, 'min_app_build': 1}, 5),
+        isFalse,
+      );
+      expect(
+        isUnsupportedBuild({'api_version': kApiVersion, 'min_app_build': 5}, 5),
+        isFalse,
+        reason: '최소 빌드와 같으면 아직 지원 대상이다',
+      );
+    });
+
+    test('최소 빌드보다 낮으면 지원 종료', () {
+      expect(
+        isUnsupportedBuild({'api_version': kApiVersion, 'min_app_build': 6}, 5),
+        isTrue,
+      );
+    });
+
+    test('API 버전이 다르면 지원 종료', () {
+      expect(
+        isUnsupportedBuild({'api_version': 'v2', 'min_app_build': 1}, 5),
+        isTrue,
+      );
+    });
+
+    test('응답을 못 받았거나 모양이 이상하면 막지 않는다', () {
+      expect(isUnsupportedBuild(null, 5), isFalse);
+      expect(isUnsupportedBuild({}, 5), isFalse);
+      expect(isUnsupportedBuild({'min_app_build': '9'}, 5), isFalse);
+    });
+  });
 }

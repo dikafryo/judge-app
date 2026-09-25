@@ -58,6 +58,18 @@ class AdminApi {
     return AdminApi(api, token, event);
   }
 
+  /// 로그아웃 — 서버에서 이 토큰을 폐기한다. 기기에서 잊는 것만으로는 토큰이
+  /// 서버에 살아 남아, 새어 나가면 행사를 계속 고칠 수 있다.
+  ///
+  /// 연결이 끊겨도 로그아웃은 막지 않는다 — 나가려는 사람을 붙잡아 둘 이유가 없다.
+  Future<void> signOut() async {
+    try {
+      await _api.delete('/session', token: token);
+    } on ApiException {
+      // 네트워크 실패·이미 만료된 토큰은 무시한다.
+    }
+  }
+
   /// 설정을 바꾼 뒤에는 행사 정보도 다시 읽어야 화면 제목·마감 상태가 어긋나지 않는다.
   Future<AdminApi> refreshed() => _withToken(_api, token);
 

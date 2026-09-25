@@ -40,6 +40,7 @@ class FakeServer {
       return _json({
         'token': 'test-token',
         'judge': {'id': 7, 'name': '홍길동'},
+        'event': {'id': 3, 'name': '샘플 행사'},
       });
     }
 
@@ -58,7 +59,16 @@ class FakeServer {
 
       if (failWith != null) return _json({'message': '거절'}, status: failWith!);
 
-      return _json({'message': '저장되었습니다.', 'total': 80});
+      final candidateId = int.parse(
+        request.url.pathSegments.reversed.skip(1).first,
+      );
+
+      return _json({
+        'message': '01번 점수가 저장되었습니다.',
+        'candidate_id': candidateId,
+        'total': 80,
+        'updated_at': '2026-09-26 10:00:00',
+      });
     }
 
     if (path.endsWith('/judge/signature')) {
@@ -66,7 +76,10 @@ class FakeServer {
 
       if (failWith != null) return _json({'message': '거절'}, status: failWith!);
 
-      return _json({'message': '서명이 저장되었습니다.'});
+      return _json({
+        'message': '서명이 저장되었습니다.',
+        'signed_at': '2026-09-26T10:00:00+09:00',
+      });
     }
 
     return _json({'message': '알 수 없는 요청'}, status: 404);
@@ -195,6 +208,36 @@ void main() {
     expect(session.state.status, SessionStatus.signedOut);
     expect(session.state.notice, contains('만료'));
     expect(store.token, isNull);
+  });
+
+  test('못 보낸 점수가 있는 채로 토큰이 죽으면 몇 건을 잃는지 알린다', () async {
+    // 대기열을 조용히 지우면 심사위원은 점수가 들어간 줄 안다 — 가장 큰 사고다.
+    final (session, server, store) = await signedIn();
+
+    server.offline = true;
+    await session.saveScores(101, {11: 10, 12: 10, 2: 10});
+    await session.saveScores(102, {11: 20, 12: 20, 2: 20});
+    expect(session.state.pendingCount, 2);
+
+    server.offline = false;
+    server.failWith = 401;
+    await session.flush();
+
+    expect(session.state.status, SessionStatus.signedOut);
+    expect(session.state.notice, contains('전송하지 못한 점수 2건'));
+    expect(session.state.notice, contains('주최자'));
+    expect(store.queue, isEmpty, reason: '토큰이 죽어 다시 보낼 수 없으므로 기기에서는 지운다');
+    expect(session.state.queue.length, 2, reason: '무엇을 못 보냈는지는 메모리에 남겨 둔다');
+  });
+
+  test('대상이 지워졌으면(404) 그 건만 빼고 서버 사유를 알린다', () async {
+    final (session, server, _) = await signedIn();
+
+    server.failWith = 404;
+    await session.saveScores(102, {11: 10, 12: 10, 2: 10});
+
+    expect(session.state.pendingCount, 0);
+    expect(session.state.notice, '거절');
   });
 
   test('앱을 켜 둔 상태에서도 마감을 감지해 접속을 종료한다', () async {
