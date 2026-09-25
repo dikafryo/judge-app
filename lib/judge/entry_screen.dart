@@ -76,6 +76,8 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
       child: Scaffold(
         body: SingleChildScrollView(
           child: Column(
+            // 머리 판이 화면 폭을 다 채우도록. 아래 카드는 Center+ConstrainedBox 로 폭을 따로 잡는다.
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // 머리 판은 상태바 뒤까지 칠한다. 그래서 SafeArea 대신 인셋만큼 안쪽 여백을 준다.
               HeroPanel(

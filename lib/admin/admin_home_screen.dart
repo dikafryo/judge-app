@@ -173,11 +173,11 @@ class _AdminHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    event.name,
+                    keepWords(event.name),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: 18,
                       height: 1.3,
                       fontWeight: FontWeight.w800,
                       color: Colors.white,

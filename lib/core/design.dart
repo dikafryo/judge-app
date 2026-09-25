@@ -1355,3 +1355,11 @@ String formatSyncedAt(DateTime? at, {DateTime? now}) {
 
   return '$hour:$minute 전송됨';
 }
+
+/// 한국어 제목이 **띄어쓰기에서만** 줄바꿈되게 한다.
+///
+/// Flutter 는 한글을 글자 단위로 끊어 "경진/대회" 처럼 단어 중간에서 줄이 바뀐다.
+/// 단어 안 글자 사이에 단어 결합 문자(U+2060)를 넣어 막는다. 한 단어가 한 줄보다 길면
+/// 그 단어만 글자 단위로 끊긴다(말줄임 처리는 그대로 동작한다).
+String keepWords(String text) =>
+    text.split(' ').map((word) => word.characters.join('\u2060')).join(' ');
