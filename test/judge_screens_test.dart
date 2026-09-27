@@ -134,16 +134,20 @@ void main() {
 
     await show(tester, container, const SignatureScreen());
 
-    expect(find.text('여기에 서명하세요'), findsOneWidget);
+    expect(find.text('칸을 가득 채워 크게 서명하세요'), findsOneWidget);
 
     await tester.drag(
-      find.text('여기에 서명하세요'),
+      find.text('칸을 가득 채워 크게 서명하세요'),
       const Offset(80, 10),
       warnIfMissed: false, // 안내는 IgnorePointer 라 그 아래 서명 칸이 받는다
     );
     await tester.pump();
 
-    expect(find.text('여기에 서명하세요'), findsNothing, reason: '긋기 시작하면 안내는 사라진다');
+    expect(
+      find.text('칸을 가득 채워 크게 서명하세요'),
+      findsNothing,
+      reason: '긋기 시작하면 안내는 사라진다',
+    );
 
     await close(tester, container);
   });
@@ -187,6 +191,69 @@ void main() {
       );
 
       expect(result.length, 200000);
+    });
+  });
+
+  group('서명 굵기는 칸 크기와 무관하다', () {
+    // 같은 서명을 폰(작은 칸)과 태블릿(큰 칸)에서 쓴 경우 — 저장 이미지 안의 위치가 같아야
+    // 출력물에서 같은 크기·같은 굵기로 보인다.
+    List<List<Offset>> signature(double k) => [
+      [
+        Offset(40 * k, 60 * k),
+        Offset(120 * k, 30 * k),
+        Offset(200 * k, 90 * k),
+      ],
+      [Offset(90 * k, 100 * k), Offset(160 * k, 110 * k)],
+    ];
+
+    test('폰과 태블릿의 같은 서명은 같은 이미지로 옮겨진다', () {
+      final phone = fitStrokes(signature(1), kSignatureOutput);
+      final tablet = fitStrokes(signature(2.4), kSignatureOutput);
+
+      for (var i = 0; i < phone.length; i++) {
+        for (var j = 0; j < phone[i].length; j++) {
+          expect((phone[i][j] - tablet[i][j]).distance, lessThan(0.001));
+        }
+      }
+    });
+
+    test('작게 써도 이미지를 채운다(여백 안에 닿는다)', () {
+      final tiny = fitStrokes(signature(0.3), kSignatureOutput);
+      final xs = [
+        for (final s in tiny)
+          for (final p in s) p.dx,
+      ];
+      final ys = [
+        for (final s in tiny)
+          for (final p in s) p.dy,
+      ];
+      final w =
+          xs.reduce((a, b) => a > b ? a : b) -
+          xs.reduce((a, b) => a < b ? a : b);
+      final h =
+          ys.reduce((a, b) => a > b ? a : b) -
+          ys.reduce((a, b) => a < b ? a : b);
+      final fillsWidth =
+          (w - (kSignatureOutput.width - kSignatureMargin * 2)).abs() < 0.01;
+      final fillsHeight =
+          (h - (kSignatureOutput.height - kSignatureMargin * 2)).abs() < 0.01;
+
+      expect(fillsWidth || fillsHeight, isTrue);
+    });
+
+    test('점 하나만 찍어도 나눗셈 오류 없이 가운데에 놓인다', () {
+      final dot = fitStrokes([
+        [const Offset(10, 10)],
+      ], kSignatureOutput);
+
+      expect(dot.single.single, const Offset(360, 120));
+    });
+
+    test('화면 선 굵기는 칸 폭에 비례하고 3~10 사이다', () {
+      expect(onScreenStroke(720), 9);
+      expect(onScreenStroke(360), 4.5);
+      expect(onScreenStroke(100), 3);
+      expect(onScreenStroke(2000), 10);
     });
   });
 }
